@@ -118,7 +118,9 @@ object FlinkRuleSets {
     DataSetCorrelateRule.INSTANCE,
     BatchTableSourceScanRule.INSTANCE,
     // project pushdown optimization
-    PushProjectIntoBatchTableSourceScanRule.INSTANCE
+    PushProjectIntoBatchTableSourceScanRule.INSTANCE,
+    // partition pruning
+    DataSetPartitionPruningRule.INSTANCE
   )
 
   /**
@@ -171,7 +173,9 @@ object FlinkRuleSets {
       DataStreamValuesRule.INSTANCE,
       DataStreamCorrelateRule.INSTANCE,
       StreamTableSourceScanRule.INSTANCE,
-      PushProjectIntoStreamTableSourceScanRule.INSTANCE
+      PushProjectIntoStreamTableSourceScanRule.INSTANCE,
+      // partition pruning
+      DataStreamPartitionPruningRule.INSTANCE
   )
 
 }
