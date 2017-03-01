@@ -61,6 +61,12 @@ abstract class ScalarFunction extends UserDefinedFunction {
   // ----------------------------------------------------------------------------------------------
 
   /**
+    * @return true if a scalar function is guaranteed to always return
+    *         the same result given the same arguments; true is assumed by default
+    */
+  def isDeterministic: Boolean = true
+
+  /**
     * Returns the result type of the evaluation method with a given signature.
     *
     * This method needs to be overriden in case Flink's type extraction facilities are not

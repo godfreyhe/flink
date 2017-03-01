@@ -26,6 +26,7 @@ import org.apache.calcite.sql.SqlIntervalQualifier
 import org.apache.calcite.sql.`type`.SqlTypeName
 import org.apache.calcite.sql.parser.SqlParserPos
 import org.apache.calcite.tools.RelBuilder
+import org.apache.calcite.util.NlsString
 import org.apache.flink.api.common.typeinfo.{BasicTypeInfo, SqlTimeTypeInfo, TypeInformation}
 import org.apache.flink.table.calcite.FlinkTypeFactory
 import org.apache.flink.table.typeutils.{RowIntervalTypeInfo, TimeIntervalTypeInfo}
@@ -97,7 +98,12 @@ case class Literal(value: Any, resultType: TypeInformation[_]) extends LeafExpre
           SqlParserPos.ZERO)
         relBuilder.getRexBuilder.makeIntervalLiteral(interval, intervalQualifier)
 
-      case _ => relBuilder.literal(value)
+      case _ =>
+        val strValue = value match {
+          case s: NlsString => s.getValue
+          case _ => value
+        }
+        relBuilder.literal(strValue)
     }
   }
 
