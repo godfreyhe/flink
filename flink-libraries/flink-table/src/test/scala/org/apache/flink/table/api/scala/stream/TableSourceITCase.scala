@@ -86,25 +86,6 @@ class TableSourceITCase extends StreamingMultipleProgramsTestBase {
   }
 
   @Test
-  def testCsvTableSourceWithFilterable(): Unit = {
-    StreamITCase.testResults = mutable.MutableList()
-    val tableName = "MyTable"
-    val env = StreamExecutionEnvironment.getExecutionEnvironment
-    val tEnv = TableEnvironment.getTableEnvironment(env)
-    tEnv.registerTableSource(tableName, CommonTestData.getFilterableTableSource)
-    tEnv.scan(tableName)
-      .where("amount > 4 && price < 9")
-      .select("id, name")
-      .addSink(new StreamITCase.StringSink)
-
-    env.execute()
-
-    val expected = mutable.MutableList(
-      "5,Record_5", "6,Record_6", "7,Record_7", "8,Record_8")
-    assertEquals(expected.sorted, StreamITCase.testResults.sorted)
-  }
-
-  @Test
   def testPartitionableTableSource(): Unit = {
     val env = StreamExecutionEnvironment.getExecutionEnvironment
     val tEnv = TableEnvironment.getTableEnvironment(env)
