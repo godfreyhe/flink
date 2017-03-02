@@ -19,12 +19,13 @@
 package org.apache.flink.table.api.scala.batch
 
 import org.apache.flink.api.scala.ExecutionEnvironment
+import org.apache.flink.table.api.TableEnvironment
+import org.apache.flink.table.api.scala._
 import org.apache.flink.table.api.scala.batch.utils.TableProgramsCollectionTestBase
 import org.apache.flink.table.api.scala.batch.utils.TableProgramsTestBase.TableConfigMode
-import org.apache.flink.table.api.scala._
-import org.apache.flink.table.api.TableEnvironment
-import org.apache.flink.table.utils.CommonTestData
+import org.apache.flink.table.utils.{CommonTestData, TestPartitionableCsvTableSource}
 import org.apache.flink.test.util.TestBaseUtils
+import org.junit.Assert._
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.Parameterized
@@ -100,6 +101,43 @@ class TableSourceITCase(
     val expected = "Bob,Taylor,Pearse Street,Dublin"
 
     TestBaseUtils.compareResultAsText(result.asJava, expected)
+  }
+
+  @Test
+  def testPartitionableTableSource(): Unit = {
+    val env = ExecutionEnvironment.getExecutionEnvironment
+    val tEnv = TableEnvironment.getTableEnvironment(env, config)
+
+    val table = new TestPartitionableCsvTableSource
+    tEnv.registerTableSource("csv_table", table)
+
+    val results = tEnv.sql("select * from csv_table where part = '2'")
+      .collect()
+
+    assertTrue(table.getPrunedPartitions.isDefined)
+    assertEquals(1, table.getPrunedPartitions.size)
+    assertEquals("part=2", table.getPrunedPartitions.get.head)
+
+    assertEquals(2, results.size)
+    assertEquals(3, results.head.getField(0))
+    assertEquals(4, results(1).getField(0))
+  }
+
+  @Test
+  def testPartitionPruningRuleNotApplied(): Unit = {
+    val env = ExecutionEnvironment.getExecutionEnvironment
+    val tEnv = TableEnvironment.getTableEnvironment(env, config)
+
+    val table = new TestPartitionableCsvTableSource
+    tEnv.registerTableSource("csv_table", table)
+
+    val results = tEnv.sql("select * from csv_table where name = 'Lucy'")
+      .collect()
+
+    assertTrue(table.getPrunedPartitions.isEmpty)
+
+    assertEquals(1, results.size)
+    assertEquals(6, results.head.getField(0))
   }
 
 }
