@@ -27,14 +27,16 @@ import org.apache.calcite.rel.`type`.RelDataType
 import org.apache.calcite.sql2rel.RelDecorrelator
 import org.apache.calcite.tools.RuleSet
 import org.apache.flink.api.common.typeinfo.TypeInformation
-import org.apache.flink.api.java.typeutils.GenericTypeInfo
+import org.apache.flink.api.java.typeutils.{GenericTypeInfo, RowTypeInfo}
 import org.apache.flink.streaming.api.datastream.DataStream
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment
 import org.apache.flink.table.explain.PlanJsonParser
 import org.apache.flink.table.expressions.Expression
+import org.apache.flink.table.plan.logical.SinkNode
 import org.apache.flink.table.plan.nodes.datastream.{DataStreamConvention, DataStreamRel}
 import org.apache.flink.table.plan.rules.FlinkRuleSets
 import org.apache.flink.table.plan.schema.{DataStreamTable, TableSourceTable}
+import org.apache.flink.table.plan.{LogicalNodeBlock, LogicalNodeBlockTreeBuilder}
 import org.apache.flink.table.sinks.{StreamTableSink, TableSink}
 import org.apache.flink.table.sources.{StreamTableSource, TableSource}
 import org.apache.flink.types.Row
@@ -154,16 +156,86 @@ abstract class StreamTableEnvironment(
     */
   override private[flink] def writeToSink[T](table: Table, sink: TableSink[T]): Unit = {
 
-    sink match {
-      case streamSink: StreamTableSink[T] =>
-        val outputType = sink.getOutputType
-        // translate the Table into a DataStream and provide the type that the TableSink expects.
-        val result: DataStream[T] = translate(table)(outputType)
-        // Give the DataSet to the TableSink to emit it.
-        streamSink.emitDataStream(result)
-      case _ =>
-        throw new TableException("StreamTableSink required to emit streaming Table")
+    if (config.supportOptimizeMultiSinksIntoSameDAG) {
+      sinkNodes += new SinkNode(table.logicalPlan, sink)
+    } else {
+      sink match {
+        case streamSink: StreamTableSink[T] =>
+          val outputType = sink.getOutputType
+          // translate the Table into a DataStream and provide the type that the TableSink expects.
+          val result: DataStream[T] = translate(table)(outputType)
+          // Give the DataStream to the TableSink to emit it.
+          streamSink.emitDataStream(result)
+        case _ =>
+          throw new TableException("StreamTableSink required to emit streaming Table")
+      }
     }
+  }
+
+  def execute: Unit = {
+    if (config.supportOptimizeMultiSinksIntoSameDAG) {
+      compile
+    }
+    execEnv.execute()
+  }
+
+  def compile: Unit = {
+
+    if (config.supportOptimizeMultiSinksIntoSameDAG) {
+      if(sinkNodes.isEmpty) {
+        throw new TableException("No table sinks have been created yet. " +
+          "A program needs at least one sink that consumes data. ")
+      }
+
+      val blockTree = LogicalNodeBlockTreeBuilder.buildLogicalNodeBlockTree(sinkNodes)
+      blockTree.foreach {
+        sinkBlock =>
+          val result: DataStream[_] = translateLogicalNodeBlockPlan(sinkBlock)
+          sinkBlock.outputNode match {
+            case sinkNode: SinkNode => emitDataStream(
+              sinkNode.sink.asInstanceOf[TableSink[Any]],
+              result.asInstanceOf[DataStream[Any]])
+            case _ => throw new TableException("SinkNode required here")
+          }
+      }
+    }
+  }
+
+  private def emitDataStream[T](sink: TableSink[T], dataStream: DataStream[T]): Unit = {
+    sink match {
+      case streamSink: StreamTableSink[T] => streamSink.emitDataStream(dataStream)
+      case _ => throw new TableException("StreamTableSink required to emit streaming Table")
+    }
+  }
+
+  private def translateLogicalNodeBlockPlan(block: LogicalNodeBlock): DataStream[_] = {
+
+    block.children.foreach {
+      child => if (child.getNewOutputNode.isEmpty) {
+        translateLogicalNodeBlockPlan(child)
+      }
+    }
+
+    val blockLogicalPlan = block.getLogicalPlan
+    val logicalPlan = blockLogicalPlan match {
+      case n: SinkNode => n.child // ignore sink node
+      case o => o
+    }
+
+    val table = new Table(this, logicalPlan)
+
+    val fieldNames = table.getSchema.getColumnNames
+    val outputType = blockLogicalPlan match {
+      case n: SinkNode => n.sink.getOutputType
+      case _ => new RowTypeInfo(table.getSchema.getTypes: _*)
+    }
+
+    val dataStream: DataStream[_] = translate(table)(outputType)
+    val name = createUniqueTableName()
+    registerDataStreamInternal(name, dataStream, fieldNames)
+    val newTable = scan(name)
+    block.setNewOutputNode(newTable.logicalPlan)
+    dataStream
   }
 
   /**
@@ -202,6 +274,27 @@ abstract class StreamTableEnvironment(
     fields: Array[Expression]): Unit = {
 
     val (fieldNames, fieldIndexes) = getFieldInfo[T](dataStream.getType, fields)
+    val dataStreamTable = new DataStreamTable[T](
+      dataStream,
+      fieldIndexes,
+      fieldNames
+    )
+    registerTableInternal(name, dataStreamTable)
+  }
+
+  /**
+    * Registers a [[DataStream]] as a table under a given name in the [[TableEnvironment]]'s
+    * catalog.
+    *
+    * @param name The name under which the table is registered in the catalog.
+    * @param dataStream The [[DataStream]] to register as table in the catalog.
+    * @param fieldNames The fieldNames to define the field names of the table.
+    * @tparam T the type of the [[DataStream]].
+    */
+  protected def registerDataStreamInternal[T](
+    name: String, dataStream: DataStream[T], fieldNames: Array[String]): Unit = {
+
+    val fieldIndexes = fieldNames.indices.toArray
     val dataStreamTable = new DataStreamTable[T](
       dataStream,
       fieldIndexes,

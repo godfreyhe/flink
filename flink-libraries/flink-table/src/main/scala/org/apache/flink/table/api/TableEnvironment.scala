@@ -51,7 +51,7 @@ import org.apache.flink.table.expressions.{Alias, Expression, UnresolvedFieldRef
 import org.apache.flink.table.functions.utils.UserDefinedFunctionUtils.{checkForInstantiation, checkNotSingleton, createScalarSqlFunction, createTableSqlFunctions}
 import org.apache.flink.table.functions.{ScalarFunction, TableFunction}
 import org.apache.flink.table.plan.cost.DataSetCostFactory
-import org.apache.flink.table.plan.logical.{CatalogNode, LogicalRelNode}
+import org.apache.flink.table.plan.logical.{CatalogNode, LogicalNode, LogicalRelNode}
 import org.apache.flink.table.plan.schema.RelTable
 import org.apache.flink.table.runtime.MapRunner
 import org.apache.flink.table.sinks.TableSink
@@ -60,6 +60,7 @@ import org.apache.flink.table.validate.FunctionCatalog
 import org.apache.flink.types.Row
 
 import _root_.scala.collection.JavaConverters._
+import _root_.scala.collection.mutable
 
 /**
   * The abstract base class for batch and stream TableEnvironments.
@@ -98,6 +99,8 @@ abstract class TableEnvironment(val config: TableConfig) {
 
   // a counter for unique attribute names
   private val attrNameCntr: AtomicInteger = new AtomicInteger(0)
+
+  private[api] val sinkNodes = new mutable.MutableList[LogicalNode]
 
   /** Returns the table config to define the runtime behavior of the Table API. */
   def getConfig = config
@@ -393,6 +396,10 @@ abstract class TableEnvironment(val config: TableConfig) {
     * @tparam T The data type that the [[TableSink]] expects.
     */
   private[flink] def writeToSink[T](table: Table, sink: TableSink[T]): Unit
+
+  def execute: Unit
+
+  def compile: Unit
 
   /**
     * Registers a Calcite [[AbstractTable]] in the TableEnvironment's catalog.
