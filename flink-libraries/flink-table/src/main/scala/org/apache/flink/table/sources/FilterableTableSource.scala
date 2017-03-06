@@ -25,6 +25,7 @@ import org.apache.flink.table.expressions.Expression
   * Adds support for filtering push-down to a [[TableSource]].
   * A [[TableSource]] extending this interface is able to filter the fields of the return table.
   *
+  * Requires FLINK-3849
   */
 trait FilterableTableSource {
 

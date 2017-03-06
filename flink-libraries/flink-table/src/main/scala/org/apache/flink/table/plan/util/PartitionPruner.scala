@@ -66,7 +66,7 @@ abstract class PartitionPruner extends Compiler[FlatMapFunction[Row, Boolean]] {
     partitionPredicate: Array[Expression],
     relBuilder: RelBuilder): Seq[Partition] = {
 
-    if (allPartitions.isEmpty) {
+    if (allPartitions.isEmpty || partitionPredicate.isEmpty) {
       return allPartitions
     }
 
@@ -76,6 +76,9 @@ abstract class PartitionPruner extends Compiler[FlatMapFunction[Row, Boolean]] {
     val typeFactory = new FlinkTypeFactory(RelDataTypeSystem.DEFAULT)
     val relDataType = typeFactory.buildRowDataType(partitionFieldNames, partitionFieldTypes)
     val predicateRexNode = convertPredicateToRexNode(newPredicate, relBuilder, relDataType)
+    if (predicateRexNode == null) {
+      return allPartitions
+    }
 
     // Validating whether ScalaFunctions contain overriding open and close methods
     predicateRexNode.accept(new ScalarFunctionValidator())
@@ -174,6 +177,10 @@ abstract class PartitionPruner extends Compiler[FlatMapFunction[Row, Boolean]] {
     }
   }
 
+  /**
+    * Copy from https://github.com/apache/flink/pull/3166 for compiling.
+    * This method will be removed after FLINK-3849 is merged.
+    */
   private def resolveFields(
     predicate: Array[Expression],
     inType: RelDataType): Array[Expression] = {
@@ -187,6 +194,10 @@ abstract class PartitionPruner extends Compiler[FlatMapFunction[Row, Boolean]] {
     predicate.map(_.postOrderTransform(rule))
   }
 
+  /**
+    * Copy from https://github.com/apache/flink/pull/3166 for compiling.
+    * This method will be removed after FLINK-3849 is merged.
+    */
   private def conjunct(exps: Array[Expression]): Option[Expression] = {
     def overIndexes(): IndexedSeq[Expression] = {
       for {
