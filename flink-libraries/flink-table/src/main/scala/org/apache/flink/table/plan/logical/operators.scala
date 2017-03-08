@@ -36,6 +36,7 @@ import org.apache.flink.table.functions.TableFunction
 import org.apache.flink.table.functions.utils.TableSqlFunction
 import org.apache.flink.table.functions.utils.UserDefinedFunctionUtils._
 import org.apache.flink.table.plan.schema.FlinkTableFunctionImpl
+import org.apache.flink.table.sinks.TableSink
 import org.apache.flink.table.validate.{ValidationFailure, ValidationSuccess}
 
 import scala.collection.JavaConverters._
@@ -523,6 +524,14 @@ case class CatalogNode(
   }
 
   override def validate(tableEnv: TableEnvironment): LogicalNode = this
+}
+
+case class SinkNode(child: LogicalNode, sink: TableSink[_]) extends UnaryNode {
+  override def output: Seq[Attribute] = child.output
+
+  override protected[logical] def construct(relBuilder: RelBuilder): RelBuilder = {
+    throw UnresolvedException("Invalid call to toRelNode on SinkNode")
+  }
 }
 
 /**

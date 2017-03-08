@@ -27,6 +27,7 @@ import org.apache.flink.table.api.scala._
 import org.apache.flink.api.scala.util.CollectionDataSets
 import org.apache.flink.table.api.TableEnvironment
 import org.apache.flink.table.sinks.CsvTableSink
+import org.apache.flink.table.utils.CommonTestData
 import org.apache.flink.test.util.TestBaseUtils
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -64,6 +65,42 @@ class TableSinkITCase(
       "Comment#12|6", "Comment#13|6", "Comment#14|6", "Comment#15|6").mkString("\n")
 
     TestBaseUtils.compareResultsByLinesInMemory(expected, path)
+  }
+
+  @Test
+  def testMultipleBatchTableSinksInSameDAG(): Unit = {
+    val tmpFile1 = File.createTempFile("flink-table-sink-test1", ".tmp")
+    val tmpFile2 = File.createTempFile("flink-table-sink-test2", ".tmp")
+    tmpFile1.deleteOnExit()
+    tmpFile2.deleteOnExit()
+    val path1 = tmpFile1.toURI.toString
+    val path2 = tmpFile2.toURI.toString
+
+    val tableConfig = config
+    tableConfig.optimizeMultiSinksIntoSameDAG(true)
+    val env = ExecutionEnvironment.getExecutionEnvironment
+    val tEnv = TableEnvironment.getTableEnvironment(env, tableConfig)
+    env.setParallelism(4)
+
+    tEnv.registerTableSource("test", CommonTestData.getCsvTableSource)
+
+    val table = tEnv.scan("test").select('id, 'first, 'score)
+
+    table.where('score > 10 && 'score < 40)
+      .select('id, 'first)
+      .writeToSink(new CsvTableSink(path1, fieldDelim = "|"))
+
+    table.where('score <= 10 || 'score >= 40)
+      .select('id, 'first)
+      .writeToSink(new CsvTableSink(path2, fieldDelim = "|"))
+
+    tEnv.execute
+
+    val expected1 = Seq("1|Mike", "5|Liz").mkString("\n")
+    TestBaseUtils.compareResultsByLinesInMemory(expected1, path1)
+
+    val expected2 = Seq("2|Bob", "3|Sam", "4|Peter", "6|Sally", "7|Alice", "8|Kelly").mkString("\n")
+    TestBaseUtils.compareResultsByLinesInMemory(expected2, path2)
   }
 
 }

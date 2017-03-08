@@ -28,13 +28,15 @@ import org.apache.calcite.sql2rel.RelDecorrelator
 import org.apache.calcite.tools.RuleSet
 import org.apache.flink.api.common.typeinfo.TypeInformation
 import org.apache.flink.api.java.io.DiscardingOutputFormat
-import org.apache.flink.api.java.typeutils.GenericTypeInfo
+import org.apache.flink.api.java.typeutils.{GenericTypeInfo, RowTypeInfo}
 import org.apache.flink.api.java.{DataSet, ExecutionEnvironment}
 import org.apache.flink.table.explain.PlanJsonParser
 import org.apache.flink.table.expressions.Expression
+import org.apache.flink.table.plan.logical.SinkNode
 import org.apache.flink.table.plan.nodes.dataset.{DataSetConvention, DataSetRel}
 import org.apache.flink.table.plan.rules.FlinkRuleSets
 import org.apache.flink.table.plan.schema.{DataSetTable, TableSourceTable}
+import org.apache.flink.table.plan.{LogicalNodeBlock, LogicalNodeBlockTreeBuilder}
 import org.apache.flink.table.sinks.{BatchTableSink, TableSink}
 import org.apache.flink.table.sources.{BatchTableSource, TableSource}
 import org.apache.flink.types.Row
@@ -114,16 +116,86 @@ abstract class BatchTableEnvironment(
     */
   override private[flink] def writeToSink[T](table: Table, sink: TableSink[T]): Unit = {
 
-    sink match {
-      case batchSink: BatchTableSink[T] =>
-        val outputType = sink.getOutputType
-        // translate the Table into a DataSet and provide the type that the TableSink expects.
-        val result: DataSet[T] = translate(table)(outputType)
-        // Give the DataSet to the TableSink to emit it.
-        batchSink.emitDataSet(result)
-      case _ =>
-        throw new TableException("BatchTableSink required to emit batch Table")
+    if (config.supportOptimizeMultiSinksIntoSameDAG) {
+      sinkNodes += new SinkNode(table.logicalPlan, sink)
+    } else {
+      sink match {
+        case batchSink: BatchTableSink[T] =>
+          val outputType = sink.getOutputType
+          // translate the Table into a DataSet and provide the type that the TableSink expects.
+          val result: DataSet[T] = translate(table)(outputType)
+          // Give the DataSet to the TableSink to emit it.
+          batchSink.emitDataSet(result)
+        case _ =>
+          throw new TableException("BatchTableSink required to emit batch Table")
+      }
     }
+  }
+
+  def execute: Unit = {
+    if (config.supportOptimizeMultiSinksIntoSameDAG) {
+      compile
+    }
+    execEnv.execute()
+  }
+
+  def compile: Unit = {
+
+    if (config.supportOptimizeMultiSinksIntoSameDAG) {
+      if(sinkNodes.isEmpty) {
+        throw new TableException("No table sinks have been created yet. " +
+          "A program needs at least one sink that consumes data. ")
+      }
+
+      val blockTree = LogicalNodeBlockTreeBuilder.buildLogicalNodeBlockTree(sinkNodes)
+      blockTree.foreach {
+        sinkBlock =>
+          val result: DataSet[_] = translateLogicalNodeBlockPlan(sinkBlock)
+          sinkBlock.outputNode match {
+            case sinkNode: SinkNode => emitDataSet(
+              sinkNode.sink.asInstanceOf[TableSink[Any]],
+              result.asInstanceOf[DataSet[Any]])
+            case _ => throw new TableException("SinkNode required here")
+          }
+      }
+    }
+  }
+
+  private def emitDataSet[T](sink: TableSink[T], dataSet: DataSet[T]): Unit = {
+    sink match {
+      case batchSink: BatchTableSink[T] => batchSink.emitDataSet(dataSet)
+      case _ => throw new TableException("BatchTableSink required to emit batch Table")
+    }
+  }
+
+  private def translateLogicalNodeBlockPlan(block: LogicalNodeBlock): DataSet[_] = {
+
+    block.children.foreach {
+      child => if (child.getNewOutputNode.isEmpty) {
+        translateLogicalNodeBlockPlan(child)
+      }
+    }
+
+    val blockLogicalPlan = block.getLogicalPlan
+    val logicalPlan = blockLogicalPlan match {
+      case n: SinkNode => n.child // ignore sink node
+      case o => o
+    }
+
+    val table = new Table(this, logicalPlan)
+
+    val fieldNames = table.getSchema.getColumnNames
+    val outputType = blockLogicalPlan match {
+      case n: SinkNode => n.sink.getOutputType
+      case _ => new RowTypeInfo(table.getSchema.getTypes: _*)
+    }
+
+    val dataSet: DataSet[_] = translate(table)(outputType)
+    val name = createUniqueTableName()
+    registerDataSetInternal(name, dataSet, fieldNames)
+    val newTable = scan(name)
+    block.setNewOutputNode(newTable.logicalPlan)
+    dataSet
   }
 
   /**
@@ -195,6 +267,26 @@ abstract class BatchTableEnvironment(
 
     val (fieldNames, fieldIndexes) = getFieldInfo[T](dataSet.getType, fields)
     val dataSetTable = new DataSetTable[T](dataSet, fieldIndexes, fieldNames)
+    registerTableInternal(name, dataSetTable)
+  }
+
+  /**
+    * Registers a [[DataSet]] as a table under a given name in the [[TableEnvironment]]'s catalog.
+    *
+    * @param name       The name under which the table is registered in the catalog.
+    * @param dataSet    The [[DataSet]] to register as table in the catalog.
+    * @param fieldNames The fieldNames to define the field names of the table.
+    * @tparam T the type of the [[DataSet]].
+    */
+  protected def registerDataSetInternal[T](
+    name: String, dataSet: DataSet[T], fieldNames: Array[String]): Unit = {
+
+    val fieldIndexes = fieldNames.indices.toArray
+    val dataSetTable = new DataSetTable[T](
+      dataSet,
+      fieldIndexes,
+      fieldNames
+    )
     registerTableInternal(name, dataSetTable)
   }
 

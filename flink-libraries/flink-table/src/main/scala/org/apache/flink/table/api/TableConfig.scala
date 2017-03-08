@@ -41,6 +41,8 @@ class TableConfig {
     */
   private var calciteConfig = CalciteConfig.DEFAULT
 
+  private var optimizeMultiSinksIntoSameDAG: Boolean = false
+
   /**
    * Sets the timezone for date/time/timestamp conversions.
    */
@@ -77,6 +79,12 @@ class TableConfig {
     */
   def setCalciteConfig(calciteConfig: CalciteConfig): Unit = {
     this.calciteConfig = calciteConfig
+  }
+
+  def supportOptimizeMultiSinksIntoSameDAG: Boolean = optimizeMultiSinksIntoSameDAG
+
+  def optimizeMultiSinksIntoSameDAG(optimizeMultiSinksIntoSameDAG: Boolean): Unit = {
+    this.optimizeMultiSinksIntoSameDAG = optimizeMultiSinksIntoSameDAG
   }
 }
 

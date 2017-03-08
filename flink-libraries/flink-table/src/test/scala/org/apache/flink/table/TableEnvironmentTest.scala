@@ -290,6 +290,10 @@ class MockTableEnvironment extends TableEnvironment(new TableConfig) {
   override protected def getBuiltInOptRuleSet: RuleSet = ???
 
   override def registerTableSource(name: String, tableSource: TableSource[_]) = ???
+
+  override def execute: Unit = ???
+
+  override def compile: Unit = ???
 }
 
 case class CClass(cf1: Int, cf2: String, cf3: Double)
