@@ -30,7 +30,6 @@ import org.apache.flink.table.plan.util.{PartitionPredicateExtractor, PartitionP
   */
 abstract class PartitionableTableSource extends FilterableTableSource {
 
-  private var filterPredicate = Array.empty[Expression]
   private var prunedPartitions: Option[Seq[Partition]] = None
   private var relBuilder: Option[RelBuilder] = None
 
@@ -75,7 +74,7 @@ abstract class PartitionableTableSource extends FilterableTableSource {
 
   /** return an predicate expression that was set. */
   override def getPredicate: Array[Expression] = {
-    filterPredicate
+    Array.empty[Expression]
   }
 
   /**
@@ -110,8 +109,7 @@ abstract class PartitionableTableSource extends FilterableTableSource {
       predicate
     }
 
-    filterPredicate = applyPredicate(finalRemaining)
-    filterPredicate
+    applyPredicate(finalRemaining)
   }
 
   /**
