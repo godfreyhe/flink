@@ -18,17 +18,21 @@
 
 package org.apache.flink.table.hive.thriftserver;
 
-import org.apache.flink.table.api.EnvironmentSettings;
-import org.apache.flink.table.api.TableEnvironment;
+import org.apache.flink.table.client.cli.CliOptions;
+import org.apache.flink.table.client.config.Environment;
+import org.apache.flink.table.client.gateway.Executor;
+import org.apache.flink.table.client.gateway.SessionContext;
+import org.apache.flink.table.client.gateway.local.LocalExecutor;
 
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hive.service.cli.HiveSQLException;
 import org.apache.hive.service.cli.SessionHandle;
-import org.apache.hive.service.cli.session.HiveSession;
 import org.apache.hive.service.cli.session.SessionManager;
 import org.apache.hive.service.cli.thrift.TProtocolVersion;
-import org.apache.hive.service.server.HiveServer2;
 
+import java.net.URL;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -36,10 +40,16 @@ import java.util.Map;
  */
 public class FlinkSessionManager extends SessionManager {
 
-	private FlinkOperationManager operationManager = new FlinkOperationManager();
+	private final FlinkOperationManager operationManager;
+	private final Executor executor;
 
-	public FlinkSessionManager(HiveServer2 hs2) {
+	public FlinkSessionManager(HiveThriftServer2 hs2) {
 		super(hs2);
+		CliOptions cliOptions = hs2.getCliOptions();
+		List<URL> jars = cliOptions.getJars() != null ? cliOptions.getJars() : Collections.emptyList();
+		List<URL> libDirs = cliOptions.getLibraryDirs() != null ? cliOptions.getLibraryDirs() : Collections.emptyList();
+		executor = new LocalExecutor(cliOptions.getDefaults(), jars, libDirs);
+		operationManager = new FlinkOperationManager(executor);
 	}
 
 	@Override
@@ -57,34 +67,22 @@ public class FlinkSessionManager extends SessionManager {
 			Map<String, String> sessionConf,
 			boolean withImpersonation,
 			String delegationToken) throws HiveSQLException {
-		final SessionHandle sessionHandle =
-			super.openSession(protocol, username, password, ipAddress, sessionConf, withImpersonation, delegationToken);
-		final HiveSession session = super.getSession(sessionHandle);
+		final SessionHandle sessionHandle = super.openSession(
+				protocol, username, password, ipAddress, sessionConf, withImpersonation, delegationToken);
 
-		// TODO: How to differentiate batch / streaming, now only support batch?
-		// TODO: How to differentiate flink planner / blink planner, now only support blink planner?
-		// TODO: How to support hive catalog? Should we support multiple catalogs? now only support one hive metastore as hive catalog?
-		final EnvironmentSettings settings =
-			EnvironmentSettings
-				.newInstance()
-				.useBlinkPlanner()
-				.inBatchMode()
-				.build();
-		final TableEnvironment ctx = TableEnvironment.create(settings);
-		if (sessionConf != null && sessionConf.containsKey("use:database")) {
-			final String[] database = sessionConf.get("use:database").split(":", 2);
-			if (database.length == 2) {
-				final String useDatabase = String.format("user %s.%s", database[0], database[1]);
-				ctx.sqlUpdate(useDatabase);
-			}
-		}
-		operationManager.sessionToContexts.put(sessionHandle, ctx);
+		final SessionContext context = new SessionContext(sessionHandle.getSessionId().toString(), new Environment());
+		executor.openSession(context);
+
 		return sessionHandle;
 	}
 
 	@Override
 	public void closeSession(SessionHandle sessionHandle) throws HiveSQLException {
-		super.closeSession(sessionHandle);
-		operationManager.sessionToContexts.remove(sessionHandle);
+		try {
+			super.closeSession(sessionHandle);
+		} finally {
+			executor.closeSession(sessionHandle.getSessionId().toString());
+		}
 	}
+
 }

@@ -18,13 +18,12 @@
 
 package org.apache.flink.table.hive.thriftserver;
 
-import org.apache.flink.table.api.TableConfig;
-import org.apache.flink.table.api.TableEnvironment;
+import org.apache.flink.table.client.gateway.Executor;
+import org.apache.flink.table.hive.thriftserver.operations.FlinkExecuteStatementOperation;
+import org.apache.flink.table.hive.thriftserver.operations.FlinkGetCatalogsOperation;
 
-import org.apache.hadoop.hive.ql.session.SessionState;
 import org.apache.hive.service.cli.HiveSQLException;
 import org.apache.hive.service.cli.OperationHandle;
-import org.apache.hive.service.cli.SessionHandle;
 import org.apache.hive.service.cli.operation.ExecuteStatementOperation;
 import org.apache.hive.service.cli.operation.GetCatalogsOperation;
 import org.apache.hive.service.cli.operation.GetSchemasOperation;
@@ -37,35 +36,32 @@ import org.slf4j.LoggerFactory;
 
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Flink OperationManager.
  */
 public class FlinkOperationManager extends OperationManager {
 
-	private static final Logger LOG = LoggerFactory.getLogger(HiveThrfitServer2.class);
+	private static final Logger LOG = LoggerFactory.getLogger(FlinkOperationManager.class);
 
 	final Map<OperationHandle, Operation> handleToOperation = ReflectionUtils.getSupperField(this, "handleToOperation");
-	final Map<SessionHandle, TableEnvironment> sessionToContexts = new ConcurrentHashMap<>();
+	final Executor executor;
 
-	public FlinkOperationManager() {
+	public FlinkOperationManager(Executor executor) {
 		LOG.info("Initializing FlinkOperationManager");
+		this.executor = executor;
 	}
 
 	@Override
-	public ExecuteStatementOperation newExecuteStatementOperation(HiveSession parentSession, String statement, Map<String, String> confOverlay, boolean runAsync) throws HiveSQLException {
+	public ExecuteStatementOperation newExecuteStatementOperation(
+			HiveSession parentSession,
+			String statement,
+			Map<String, String> confOverlay,
+			boolean runAsync) throws HiveSQLException {
 		LOG.info("Receive new execution statement: " + statement);
-		final TableEnvironment ctx = sessionToContexts.get(parentSession.getSessionHandle());
-		assert ctx != null;
-		final TableConfig conf = ctx.getConfig();
-		final SessionState hiveSessionState = parentSession.getSessionState();
-		// TODO: update TableConfig
-		final boolean runInBackground =
-			runAsync && conf.getConfiguration().getBoolean(HiveConfigOptions.HIVE_THRIFT_SERVER_ASYNC);
 
-		// TODO: differentiate DDL, DML, DQL and other statement(SET command), only support DQL now.
-		final ExecuteStatementOperation operation = new FlinkExecuteStatementOperation(parentSession, statement, confOverlay, runAsync, ctx);
+		final ExecuteStatementOperation operation = new FlinkExecuteStatementOperation(
+				parentSession, statement, confOverlay, runAsync, executor);
 		handleToOperation.put(operation.getHandle(), operation);
 		return operation;
 	}
@@ -73,7 +69,9 @@ public class FlinkOperationManager extends OperationManager {
 	@Override
 	public GetCatalogsOperation newGetCatalogsOperation(HiveSession parentSession) {
 		LOG.info("Receive new getCatalogs operation");
-		return super.newGetCatalogsOperation(parentSession);
+		FlinkGetCatalogsOperation operation = new FlinkGetCatalogsOperation(parentSession, executor);
+		handleToOperation.put(operation.getHandle(), operation);
+		return operation;
 	}
 
 	@Override

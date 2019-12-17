@@ -18,6 +18,9 @@
 
 package org.apache.flink.table.hive.thriftserver;
 
+import org.apache.flink.table.client.cli.CliOptions;
+import org.apache.flink.table.client.cli.CliOptionsParser;
+
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hive.service.cli.thrift.ThriftBinaryCLIService;
 import org.apache.hive.service.cli.thrift.ThriftCLIService;
@@ -26,17 +29,21 @@ import org.apache.hive.service.server.HiveServer2;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Arrays;
-
 /**
  * The main entry point for the Flink SQL port of HiveServer2.
  */
-public class HiveThrfitServer2 extends HiveServer2 implements ReflectedCompositeService {
+public class HiveThriftServer2 extends HiveServer2 implements ReflectedCompositeService {
 
-	private static final Logger LOG = LoggerFactory.getLogger(HiveThrfitServer2.class);
+	private static final Logger LOG = LoggerFactory.getLogger(HiveThriftServer2.class);
+	private final CliOptions cliOptions;
 
-	public HiveThrfitServer2() {
+	public HiveThriftServer2(CliOptions cliOptions) {
 		super();
+		this.cliOptions = cliOptions;
+	}
+
+	public CliOptions getCliOptions() {
+		return cliOptions;
 	}
 
 	@Override
@@ -54,21 +61,21 @@ public class HiveThrfitServer2 extends HiveServer2 implements ReflectedComposite
 		addService(thriftCLIService);
 
 		initCompositeService(hiveConf);
-
 	}
 
 	public static void main(String[] args) {
-
 		LOG.info("Start Flink ThriftServer!");
 
-		if (Arrays.stream(args).anyMatch(s -> ("-h".equals(s) || "--help".equals(s)))) {
+		CliOptions cliOptions = CliOptionsParser.parseGatewayModeGateway(args);
+
+		if (cliOptions.isPrintHelp()) {
 			HiveServer2.main(args);
 			return;
 		}
 
 		// TODO: parse args and do something
 		HiveConf hiveConf = new HiveConf();
-		HiveThrfitServer2 server = new HiveThrfitServer2();
+		HiveThriftServer2 server = new HiveThriftServer2(cliOptions);
 		server.init(hiveConf);
 		server.start();
 	}

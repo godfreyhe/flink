@@ -20,16 +20,15 @@ package org.apache.flink.table.hive.thriftserver;
 
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hive.service.cli.CLIService;
-import org.apache.hive.service.server.HiveServer2;
 
 /**
  * Flink CLIService.
  */
 public class FlinkCLIService extends CLIService implements ReflectedCompositeService {
 
-	private final HiveServer2 hiveServer2;
+	private final HiveThriftServer2 hiveServer2;
 
-	public FlinkCLIService(HiveServer2 hs2) {
+	public FlinkCLIService(HiveThriftServer2 hs2) {
 		super(hs2);
 
 		hiveServer2 = hs2;

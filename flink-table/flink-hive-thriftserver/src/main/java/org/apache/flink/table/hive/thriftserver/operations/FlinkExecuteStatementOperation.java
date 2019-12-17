@@ -16,24 +16,16 @@
  * limitations under the License.
  */
 
-package org.apache.flink.table.hive.thriftserver;
+package org.apache.flink.table.hive.thriftserver.operations;
 
-import org.apache.flink.api.common.ExecutionConfig;
-import org.apache.flink.api.common.JobExecutionResult;
-import org.apache.flink.api.common.accumulators.SerializedListAccumulator;
-import org.apache.flink.api.common.typeinfo.TypeInformation;
-import org.apache.flink.api.common.typeinfo.Types;
-import org.apache.flink.api.common.typeutils.TypeSerializer;
-import org.apache.flink.api.java.typeutils.RowTypeInfo;
 import org.apache.flink.table.api.Table;
-import org.apache.flink.table.api.TableEnvironment;
 import org.apache.flink.table.api.TableSchema;
-import org.apache.flink.table.planner.calcite.FlinkTypeFactory;
-import org.apache.flink.table.planner.sinks.CollectRowTableSink;
-import org.apache.flink.table.planner.sinks.CollectTableSink;
+import org.apache.flink.table.client.gateway.Executor;
+import org.apache.flink.table.client.gateway.ResultDescriptor;
+import org.apache.flink.table.client.gateway.SqlExecutionException;
+import org.apache.flink.table.client.gateway.TypedResult;
 import org.apache.flink.table.types.DataType;
 import org.apache.flink.types.Row;
-import org.apache.flink.util.AbstractID;
 
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.ql.session.OperationLog;
@@ -68,7 +60,7 @@ public class FlinkExecuteStatementOperation extends ExecuteStatementOperation {
 
 	private static final Logger LOG = LoggerFactory.getLogger(FlinkExecuteStatementOperation.class);
 
-	private final TableEnvironment sqlContext;
+	private final Executor executor;
 
 	private String statementId;
 
@@ -82,9 +74,9 @@ public class FlinkExecuteStatementOperation extends ExecuteStatementOperation {
 			String statement,
 			Map<String, String> confOverlay,
 			Boolean runInBackground,
-			TableEnvironment sqlContext) {
+			Executor executor) {
 		super(parentSession, statement, confOverlay, runInBackground);
-		this.sqlContext = sqlContext;
+		this.executor = executor;
 	}
 
 	@Override
@@ -203,24 +195,26 @@ public class FlinkExecuteStatementOperation extends ExecuteStatementOperation {
 		setState(OperationState.RUNNING);
 
 		try {
-			// TODO: support other deploy modes
-			// TODO: support streaming mode
-			table = sqlContext.sqlQuery(statement);
-			tableSchema = removeTimeAttributes(table.getSchema());
-			final RowTypeInfo outputType = new RowTypeInfo(tableSchema.getFieldTypes(), tableSchema.getFieldNames());
-			final TypeSerializer<Row> serializer = outputType.createSerializer(new ExecutionConfig());
-			final CollectTableSink<Row> sink = (CollectTableSink<Row>) new CollectRowTableSink().configure(tableSchema.getFieldNames(), tableSchema.getFieldTypes());
-			final String id = new AbstractID().toString();
-			sink.init(serializer, id);
-			sqlContext.registerTableSink(statementId, sink);
-			sqlContext.insertInto(table, statementId);
+			String sessionId = parentSession.getSessionHandle().getSessionId().toString();
+			ResultDescriptor result = executor.executeQuery(sessionId, statement);
 
-			final JobExecutionResult result = sqlContext.execute(statement);
-			final ArrayList<byte[]> accResult = result.getAccumulatorResult(id);
-			resultList = SerializedListAccumulator.deserializeList(accResult, serializer);
+			// TODO ???
+			TypedResult<Integer> typedResult =
+					executor.snapshotResult(sessionId, result.getResultId(), Integer.MAX_VALUE);
+
+			// stop retrieval if job is done
+			if (typedResult.getType() == TypedResult.ResultType.EOS) {
+				resultList = new ArrayList<>();
+			}
+			// update page
+			else if (typedResult.getType() == TypedResult.ResultType.PAYLOAD) {
+				int newPageCount = typedResult.getPayload();
+				resultList = executor.retrieveResultPage(result.getResultId(), newPageCount);
+			}
+
 			iter = resultList.iterator();
 			setState(OperationState.FINISHED);
-		} catch (HiveSQLException e) {
+		} catch (SqlExecutionException e) {
 			if (getStatus().getState() == OperationState.CANCELED) {
 				return;
 			} else {
@@ -264,20 +258,5 @@ public class FlinkExecuteStatementOperation extends ExecuteStatementOperation {
 		}
 
 		// TODO: should cleanup running job
-	}
-
-	private static TableSchema removeTimeAttributes(TableSchema schema) {
-		final TableSchema.Builder builder = TableSchema.builder();
-		for (int i = 0; i < schema.getFieldCount(); i++) {
-			final TypeInformation<?> type = schema.getFieldTypes()[i];
-			final TypeInformation<?> convertedType;
-			if (FlinkTypeFactory.isTimeIndicatorType(type)) {
-				convertedType = Types.SQL_TIMESTAMP;
-			} else {
-				convertedType = type;
-			}
-			builder.field(schema.getFieldNames()[i], convertedType);
-		}
-		return builder.build();
 	}
 }
