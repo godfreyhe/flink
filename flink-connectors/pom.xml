@@ -59,7 +59,8 @@ under the License.
 		<module>flink-connector-gcp-pubsub</module>
 		<module>flink-connector-kinesis</module>
 		<module>flink-sql-connector-elasticsearch7</module>
-	</modules>
+        <module>flink-hiveserver2</module>
+    </modules>
 
 	<!-- override these root dependencies as 'provided', so they don't end up
 		in the jars-with-dependencies (uber jars) of connectors and

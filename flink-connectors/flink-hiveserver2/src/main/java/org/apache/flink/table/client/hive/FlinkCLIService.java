@@ -1,0 +1,50 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.apache.flink.table.client.hive;
+
+import org.apache.hadoop.hive.conf.HiveConf;
+import org.apache.hive.service.cli.CLIService;
+
+/**
+ * Flink CLIService.
+ */
+public class FlinkCLIService extends CLIService implements ReflectedCompositeService {
+
+	private final HiveThriftServer2 hiveServer2;
+
+	public FlinkCLIService(HiveThriftServer2 hs2) {
+		super(hs2);
+
+		hiveServer2 = hs2;
+	}
+
+	@Override
+	public synchronized void init(HiveConf hiveConf) {
+		ReflectionUtils.setAncestorField(this, 1, "hiveConf", hiveConf);
+
+		// session manager
+		FlinkSessionManager sessionManager = new FlinkSessionManager(hiveServer2);
+		ReflectionUtils.setSuperField(this, "sessionManager", sessionManager);
+		addService(sessionManager);
+
+		// UGI
+
+		initCompositeService(hiveConf);
+	}
+}
