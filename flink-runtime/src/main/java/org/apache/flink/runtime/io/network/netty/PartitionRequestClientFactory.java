@@ -50,8 +50,11 @@ class PartitionRequestClientFactory {
 
 	private final ConcurrentMap<ConnectionID, Object> clients = new ConcurrentHashMap<ConnectionID, Object>();
 
-	PartitionRequestClientFactory(NettyClient nettyClient) {
+	private final int maxNumberOfConnections;
+
+	PartitionRequestClientFactory(NettyClient nettyClient, int maxNumberOfConnections) {
 		this.nettyClient = nettyClient;
+		this.maxNumberOfConnections = maxNumberOfConnections;
 	}
 
 	/**
@@ -63,6 +66,8 @@ class PartitionRequestClientFactory {
 		NettyPartitionRequestClient client = null;
 
 		long startTime = System.currentTimeMillis();
+		// We map the input ConnectionID to a new value to restrict the number of tcp connections
+		connectionId = new ConnectionID(connectionId.getAddress(), connectionId.getConnectionIndex() % maxNumberOfConnections);
 
 		while (client == null) {
 			entry = clients.get(connectionId);
