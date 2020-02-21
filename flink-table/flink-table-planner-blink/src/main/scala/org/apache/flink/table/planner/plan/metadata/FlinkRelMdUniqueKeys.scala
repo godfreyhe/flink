@@ -18,7 +18,6 @@
 
 package org.apache.flink.table.planner.plan.metadata
 
-import org.apache.flink.table.planner._
 import org.apache.flink.table.planner.calcite.FlinkRelBuilder.PlannerNamedWindowProperty
 import org.apache.flink.table.planner.calcite.FlinkTypeFactory
 import org.apache.flink.table.planner.plan.nodes.calcite.{Expand, Rank, WindowAggregate}
@@ -28,6 +27,7 @@ import org.apache.flink.table.planner.plan.nodes.physical.batch._
 import org.apache.flink.table.planner.plan.nodes.physical.stream._
 import org.apache.flink.table.planner.plan.schema.FlinkPreparingTableBase
 import org.apache.flink.table.planner.plan.utils.{FlinkRelMdUtil, RankUtil}
+import org.apache.flink.table.planner.{JSet, _}
 import org.apache.flink.table.runtime.operators.rank.RankType
 import org.apache.flink.table.sources.TableSource
 import org.apache.flink.table.types.logical.utils.LogicalTypeCasts
@@ -38,7 +38,7 @@ import org.apache.calcite.rel.`type`.RelDataType
 import org.apache.calcite.rel.core._
 import org.apache.calcite.rel.metadata._
 import org.apache.calcite.rel.{RelNode, SingleRel}
-import org.apache.calcite.rex.{RexCall, RexInputRef, RexNode}
+import org.apache.calcite.rex.{RexCall, RexInputRef, RexLiteral, RexNode}
 import org.apache.calcite.sql.SqlKind
 import org.apache.calcite.sql.fun.SqlStdOperatorTable
 import org.apache.calcite.util.{Bug, BuiltInMethod, ImmutableBitSet, Util}
@@ -111,6 +111,7 @@ class FlinkRelMdUniqueKeys private extends MetadataHandler[BuiltInMetadata.Uniqu
     // Further more, the unique bitset coming from the child needs
     val projUniqueKeySet = new JHashSet[ImmutableBitSet]()
     val mapInToOutPos = new JHashMap[Int, JArrayList[Int]]()
+    val constantFieldPos = new JArrayList[Int]()
 
     def appendMapInToOutPos(inIndex: Int, outIndex: Int): Unit = {
       if (mapInToOutPos.contains(inIndex)) {
@@ -126,6 +127,10 @@ class FlinkRelMdUniqueKeys private extends MetadataHandler[BuiltInMetadata.Uniqu
       case (projExpr, i) =>
         projExpr match {
           case ref: RexInputRef => appendMapInToOutPos(ref.getIndex, i)
+          case _: RexLiteral => constantFieldPos.add(i)
+          // ignore ignoreNulls for cast literal
+          case a: RexCall if a.getOperator.equals(SqlStdOperatorTable.CAST) &&
+            a.getOperands.head.isInstanceOf[RexLiteral] => constantFieldPos.add(i)
           case a: RexCall if ignoreNulls && a.getOperator.equals(SqlStdOperatorTable.CAST) =>
             val castOperand = a.getOperands.get(0)
             castOperand match {
@@ -142,6 +147,7 @@ class FlinkRelMdUniqueKeys private extends MetadataHandler[BuiltInMetadata.Uniqu
           case a: RexCall if (a.getKind.equals(SqlKind.AS) || isFidelityCast(a)) &&
             a.getOperands.get(0).isInstanceOf[RexInputRef] =>
             appendMapInToOutPos(a.getOperands.get(0).asInstanceOf[RexInputRef].getIndex, i)
+
           case _ => // ignore
         }
     }
@@ -172,8 +178,31 @@ class FlinkRelMdUniqueKeys private extends MetadataHandler[BuiltInMetadata.Uniqu
           }
         }
       }
+      // append constant field to unique key set
+      if (projUniqueKeySet.nonEmpty && constantFieldPos.nonEmpty) {
+        val originalUniqueKeySet = new JHashSet(projUniqueKeySet)
+        originalUniqueKeySet.foreach { uniqueKyeSet =>
+          fullPermutation(constantFieldPos, projUniqueKeySet, uniqueKyeSet, 0)
+        }
+      }
     }
     projUniqueKeySet
+  }
+
+  /**
+    * build full permutation for constants and append to original unique key set
+    */
+  private def fullPermutation(
+      constantFieldPos: JList[Int],
+      result: JSet[ImmutableBitSet],
+      set: ImmutableBitSet,
+      index: Int): Unit = {
+    result.add(set)
+    (index until constantFieldPos.size()).foreach { i =>
+      val tmp = new JArrayList[Int](constantFieldPos)
+      val tmpSet = set.union(ImmutableBitSet.of(tmp.remove(i)))
+      fullPermutation(tmp, result, tmpSet, i)
+    }
   }
 
   /**

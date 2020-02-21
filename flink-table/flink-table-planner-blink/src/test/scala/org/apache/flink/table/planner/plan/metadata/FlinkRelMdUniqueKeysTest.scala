@@ -22,6 +22,7 @@ import org.apache.flink.table.planner.plan.nodes.calcite.LogicalExpand
 import org.apache.flink.table.planner.plan.utils.ExpandUtil
 
 import com.google.common.collect.{ImmutableList, ImmutableSet}
+import org.apache.calcite.sql.`type`.SqlTypeName
 import org.apache.calcite.sql.fun.SqlStdOperatorTable.{EQUALS, LESS_THAN}
 import org.apache.calcite.util.ImmutableBitSet
 import org.junit.Assert._
@@ -50,7 +51,11 @@ class FlinkRelMdUniqueKeysTest extends FlinkRelMdHandlerTestBase {
 
   @Test
   def testGetUniqueKeysOnProject(): Unit = {
-    assertEquals(uniqueKeys(Array(0)), mq.getUniqueKeys(logicalProject).toSet)
+    assertEquals(
+      uniqueKeys(
+        Array(0), Array(0, 8), Array(0, 9), Array(0, 10), Array(0, 8, 9),
+        Array(0, 9, 10), Array(0, 8, 10), Array(0, 8, 9, 10)),
+      mq.getUniqueKeys(logicalProject).toSet)
 
     relBuilder.push(studentLogicalScan)
     // id=1, id, cast(id AS bigint not null), cast(id AS int), $1
@@ -63,6 +68,47 @@ class FlinkRelMdUniqueKeysTest extends FlinkRelMdHandlerTestBase {
     val project1 = relBuilder.project(exprs).build()
     assertEquals(uniqueKeys(Array(1)), mq.getUniqueKeys(project1).toSet)
     assertEquals(uniqueKeys(Array(1), Array(2)), mq.getUniqueKeys(project1, true).toSet)
+
+    // select name, name, height, name, height, cnt from
+    // (select name, height, count(id) as cnt from student group name, height) t
+    relBuilder.clear()
+    val project2 = relBuilder
+      .push(studentLogicalScan)
+      .aggregate(
+        relBuilder.groupKey(1, 4),
+        relBuilder.count(false, "cnt", relBuilder.field(0)))
+      .project(
+        relBuilder.field("name"),
+        relBuilder.field("name"),
+        relBuilder.field("height"),
+        relBuilder.field("name"),
+        relBuilder.field("height"),
+        relBuilder.field("cnt"))
+      .build()
+    assertEquals(
+      uniqueKeys(Array(0, 2), Array(0, 4), Array(1, 2), Array(1, 4), Array(2, 3), Array(3, 4)),
+      mq.getUniqueKeys(project2).toSet)
+
+    // select name, name, height, 1 as f1, cast("test" as VARCHAR(5)) as f2, cnt from
+    // (select name, height, count(id) as cnt from student group by name, height) t
+    relBuilder.clear()
+    val project3 = relBuilder
+      .push(studentLogicalScan)
+      .aggregate(
+        relBuilder.groupKey(1, 4),
+        relBuilder.count(false, "cnt", relBuilder.field(0)))
+      .project(
+        relBuilder.field("name"),
+        relBuilder.field("name"),
+        relBuilder.field("height"),
+        relBuilder.alias(relBuilder.literal(1), "f1"),
+        relBuilder.alias(relBuilder.cast(relBuilder.literal("test"), SqlTypeName.VARCHAR, 5), "f2"),
+        relBuilder.field("cnt"))
+      .build()
+    assertEquals(
+      uniqueKeys(Array(0, 2), Array(1, 2), Array(0, 2, 3), Array(0, 2, 4), Array(1, 2, 3),
+        Array(1, 2, 4), Array(0, 2, 3, 4), Array(1, 2, 3, 4)),
+      mq.getUniqueKeys(project3).toSet)
   }
 
   @Test
@@ -72,12 +118,21 @@ class FlinkRelMdUniqueKeysTest extends FlinkRelMdHandlerTestBase {
 
   @Test
   def testGetUniqueKeysOnCalc(): Unit = {
+    assertEquals(
+      uniqueKeys(
+        Array(0), Array(0, 8), Array(0, 9), Array(0, 10), Array(0, 8, 9),
+        Array(0, 9, 10), Array(0, 8, 10), Array(0, 8, 9, 10)),
+      mq.getUniqueKeys(logicalCalc).toSet)
+
     relBuilder.push(studentLogicalScan)
     // id < 100
     val expr = relBuilder.call(LESS_THAN, relBuilder.field(0), relBuilder.literal(100))
     val calc1 = createLogicalCalc(
       studentLogicalScan, logicalProject.getRowType, logicalProject.getProjects, List(expr))
-    assertEquals(uniqueKeys(Array(0)), mq.getUniqueKeys(logicalCalc).toSet)
+    assertEquals(uniqueKeys(
+      Array(0), Array(0, 8), Array(0, 9), Array(0, 10), Array(0, 8, 9),
+      Array(0, 9, 10), Array(0, 8, 10), Array(0, 8, 9, 10)),
+      mq.getUniqueKeys(calc1).toSet)
 
     // id=1, id, cast(id AS bigint not null), cast(id AS int), $1
     val exprs = List(
