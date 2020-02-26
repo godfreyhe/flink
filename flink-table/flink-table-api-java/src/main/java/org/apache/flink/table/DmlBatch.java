@@ -16,21 +16,18 @@
  * limitations under the License.
  */
 
-package org.apache.flink.table.utils;
+package org.apache.flink.table;
 
-import org.apache.flink.api.common.JobExecutionResult;
-import org.apache.flink.api.dag.Transformation;
-import org.apache.flink.table.delegation.Executor;
+import org.apache.flink.table.api.ResultTable;
+import org.apache.flink.table.api.Table;
 
-import java.util.List;
+public interface DmlBatch {
 
-/**
- * Mocking {@link Executor} for tests.
- */
-public class ExecutorMock implements Executor {
+	void addInsert(String stmt);
 
-	@Override
-	public JobExecutionResult execute(List<Transformation<?>> transformations, String jobName) throws Exception {
-		return null;
-	}
+	void addInsert(String targetPath, Table table);
+
+	ResultTable execute() throws Exception;
+
+	String explain(boolean extended);
 }

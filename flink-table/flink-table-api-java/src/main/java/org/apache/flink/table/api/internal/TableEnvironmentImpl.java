@@ -23,12 +23,16 @@ import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.api.common.JobExecutionResult;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.dag.Transformation;
+import org.apache.flink.table.DmlBatch;
+import org.apache.flink.table.api.DataTypes;
 import org.apache.flink.table.api.EnvironmentSettings;
+import org.apache.flink.table.api.ResultTable;
 import org.apache.flink.table.api.SqlParserException;
 import org.apache.flink.table.api.Table;
 import org.apache.flink.table.api.TableConfig;
 import org.apache.flink.table.api.TableEnvironment;
 import org.apache.flink.table.api.TableException;
+import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.api.ValidationException;
 import org.apache.flink.table.catalog.Catalog;
 import org.apache.flink.table.catalog.CatalogBaseTable;
@@ -94,6 +98,7 @@ import org.apache.flink.table.operations.utils.OperationTreeBuilder;
 import org.apache.flink.table.sinks.TableSink;
 import org.apache.flink.table.sources.TableSource;
 import org.apache.flink.table.sources.TableSourceValidation;
+import org.apache.flink.types.Row;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -113,7 +118,7 @@ public class TableEnvironmentImpl implements TableEnvironment {
 	// Flag that tells if the TableSource/TableSink used in this environment is stream table source/sink,
 	// and this should always be true. This avoids too many hard code.
 	private static final boolean IS_STREAM_TABLE = true;
-	private final CatalogManager catalogManager;
+	protected final CatalogManager catalogManager;
 	private final ModuleManager moduleManager;
 	private final OperationTreeBuilder operationTreeBuilder;
 	private final List<ModifyOperation> bufferedModifyOperations = new ArrayList<>();
@@ -425,11 +430,7 @@ public class TableEnvironmentImpl implements TableEnvironment {
 				objectIdentifier,
 				table.getQueryOperation()));
 
-		if (isEagerOperationTranslation()) {
-			translate(modifyOperations);
-		} else {
-			buffer(modifyOperations);
-		}
+		buffer(modifyOperations);
 	}
 
 	private Optional<CatalogQueryOperation> scanInternal(UnresolvedIdentifier identifier) {
@@ -564,12 +565,7 @@ public class TableEnvironmentImpl implements TableEnvironment {
 		Operation operation = operations.get(0);
 
 		if (operation instanceof ModifyOperation) {
-			List<ModifyOperation> modifyOperations = Collections.singletonList((ModifyOperation) operation);
-			if (isEagerOperationTranslation()) {
-				translate(modifyOperations);
-			} else {
-				buffer(modifyOperations);
-			}
+			buffer(Collections.singletonList((ModifyOperation) operation));
 		} else if (operation instanceof CreateTableOperation) {
 			CreateTableOperation createTableOperation = (CreateTableOperation) operation;
 			catalogManager.createTable(
@@ -712,9 +708,64 @@ public class TableEnvironmentImpl implements TableEnvironment {
 
 	@Override
 	public JobExecutionResult execute(String jobName) throws Exception {
-		translate(bufferedModifyOperations);
+		List<Transformation<?>> transformations = translate(bufferedModifyOperations);
 		bufferedModifyOperations.clear();
-		return execEnv.execute(jobName);
+		return execEnv.execute(transformations, jobName);
+	}
+
+	@Override
+	public ResultTable executeStatement(String stmt) throws Exception {
+		List<Operation> operations = parser.parse(stmt);
+
+		if (operations.size() != 1) {
+			throw new TableException(UNSUPPORTED_QUERY_IN_SQL_UPDATE_MSG);
+		}
+
+		Operation operation = operations.get(0);
+
+		if (operation instanceof ModifyOperation) {
+			List<ModifyOperation> modifyOperations = Collections.singletonList((ModifyOperation) operation);
+			// TODO get sink table name
+			return executeInsertInternal(modifyOperations, "sink");
+
+		} else if (operation instanceof CreateTableOperation) {
+			CreateTableOperation createTableOperation = (CreateTableOperation) operation;
+			catalogManager.createTable(
+				createTableOperation.getCatalogTable(),
+				createTableOperation.getTableIdentifier(),
+				createTableOperation.isIgnoreIfExists());
+
+			return new ResultTableImpl(
+				TableSchema.builder().field("affected_rowcount", DataTypes.BIGINT()).build(),
+				Collections.singletonList(Row.of(0L)));
+
+		} else {
+			// TODO
+			throw new UnsupportedOperationException("Unsupported statement " + stmt);
+		}
+	}
+
+	protected ResultTable executeInsertInternal(List<ModifyOperation> operations, String jobName) throws Exception {
+		List<Transformation<?>> transformations = planner.translate(operations);
+		JobExecutionResult jobExecutionResult = execEnv.execute(transformations, jobName);
+		if (!jobExecutionResult.isJobExecutionResult()) {
+			// TODO waiting job finish
+		}
+
+		TableSchema.Builder builder = TableSchema.builder();
+		Object[] values = new Object[operations.size()];
+		for (int i = 0; i < operations.size(); ++i) {
+			builder.field("affected_rowcount_" + i, DataTypes.BIGINT());
+			values[i] = -1L;
+		}
+
+
+		return new ResultTableImpl(builder.build(), Collections.singletonList(Row.of(values)));
+	}
+
+	@Override
+	public DmlBatch createDmlBatch() {
+		return new DmlBatchImpl(this);
 	}
 
 	/**
@@ -728,22 +779,6 @@ public class TableEnvironmentImpl implements TableEnvironment {
 	}
 
 	/**
-	 * Defines the behavior of this {@link TableEnvironment}. If true the queries will
-	 * be translated immediately. If false the {@link ModifyOperation}s will be buffered
-	 * and translated only when {@link #execute(String)} is called.
-	 *
-	 * <p>If the {@link TableEnvironment} works in a lazy manner it is undefined what
-	 * configurations values will be used. It depends on the characteristic of the particular
-	 * parameter. Some might used values current to the time of query construction (e.g. the currentCatalog)
-	 * and some use values from the time when {@link #execute(String)} is called (e.g. timeZone).
-	 *
-	 * @return true if the queries should be translated immediately.
-	 */
-	protected boolean isEagerOperationTranslation() {
-		return false;
-	}
-
-	/**
 	 * Subclasses can override this method to add additional checks.
 	 *
 	 * @param tableSource tableSource to validate
@@ -752,10 +787,8 @@ public class TableEnvironmentImpl implements TableEnvironment {
 		TableSourceValidation.validateTableSource(tableSource, tableSource.getTableSchema());
 	}
 
-	private void translate(List<ModifyOperation> modifyOperations) {
-		List<Transformation<?>> transformations = planner.translate(modifyOperations);
-
-		execEnv.apply(transformations);
+	protected List<Transformation<?>> translate(List<ModifyOperation> modifyOperations) {
+		return planner.translate(modifyOperations);
 	}
 
 	private void buffer(List<ModifyOperation> modifyOperations) {

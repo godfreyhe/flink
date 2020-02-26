@@ -1,0 +1,63 @@
+== Abstract Syntax Tree ==
+LogicalSink(name=[`default_catalog`.`default_database`.`MySink3`], fields=[id])
++- LogicalProject(id=[$1])
+   +- LogicalTableScan(table=[[default_catalog, default_database, MyTable, source: [CsvTableSource(read fields: first, id, score, last)]]])
+
+LogicalSink(name=[`default_catalog`.`default_database`.`MySink4`], fields=[score])
++- LogicalProject(score=[$2])
+   +- LogicalTableScan(table=[[default_catalog, default_database, MyTable, source: [CsvTableSource(read fields: first, id, score, last)]]])
+
+== Optimized Logical Plan ==
+Sink(name=[`default_catalog`.`default_database`.`MySink3`], fields=[id])
++- TableSourceScan(table=[[default_catalog, default_database, MyTable, source: [CsvTableSource(read fields: id)]]], fields=[id])
+
+Sink(name=[`default_catalog`.`default_database`.`MySink4`], fields=[score])
++- TableSourceScan(table=[[default_catalog, default_database, MyTable, source: [CsvTableSource(read fields: score)]]], fields=[score])
+
+== Physical Execution Plan ==
+Stage 25 : Data Source
+	content : Source: Custom File source
+
+	Stage 26 : Operator
+		content : CsvTableSource(read fields: id)
+		ship_strategy : REBALANCE
+
+		Stage 27 : Operator
+			content : SourceConversion(table=[default_catalog.default_database.MyTable, source: [CsvTableSource(read fields: id)]], fields=[id])
+			ship_strategy : FORWARD
+
+			Stage 28 : Operator
+				content : SinkConversionToRow
+				ship_strategy : FORWARD
+
+				Stage 29 : Operator
+					content : Map
+					ship_strategy : REBALANCE
+
+Stage 31 : Data Source
+	content : Source: Custom File source
+
+	Stage 32 : Operator
+		content : CsvTableSource(read fields: score)
+		ship_strategy : REBALANCE
+
+		Stage 33 : Operator
+			content : SourceConversion(table=[default_catalog.default_database.MyTable, source: [CsvTableSource(read fields: score)]], fields=[score])
+			ship_strategy : FORWARD
+
+			Stage 34 : Operator
+				content : SinkConversionToRow
+				ship_strategy : FORWARD
+
+				Stage 35 : Operator
+					content : Map
+					ship_strategy : REBALANCE
+
+					Stage 30 : Data Sink
+						content : Sink: CsvTableSink(id)
+						ship_strategy : FORWARD
+
+						Stage 36 : Data Sink
+							content : Sink: CsvTableSink(score)
+							ship_strategy : FORWARD
+

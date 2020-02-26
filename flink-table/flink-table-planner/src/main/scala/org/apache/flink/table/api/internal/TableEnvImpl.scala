@@ -20,6 +20,7 @@ package org.apache.flink.table.api.internal
 
 import org.apache.flink.annotation.VisibleForTesting
 import org.apache.flink.api.common.typeinfo.TypeInformation
+import org.apache.flink.table.DmlBatch
 import org.apache.flink.table.api._
 import org.apache.flink.table.calcite.{CalciteParser, FlinkPlannerImpl, FlinkRelBuilder}
 import org.apache.flink.table.catalog._
@@ -965,4 +966,8 @@ abstract class TableEnvImpl(
 
     planningConfigurationBuilder.createFlinkPlanner(currentCatalogName, currentDatabase)
   }
+
+  override def executeStatement(stmt: String): ResultTable = ???
+
+  override def createDmlBatch(): DmlBatch = ???
 }

@@ -22,6 +22,7 @@ import org.apache.flink.annotation.Experimental;
 import org.apache.flink.annotation.PublicEvolving;
 import org.apache.flink.api.common.JobExecutionResult;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
+import org.apache.flink.table.DmlBatch;
 import org.apache.flink.table.api.internal.TableEnvironmentImpl;
 import org.apache.flink.table.catalog.Catalog;
 import org.apache.flink.table.descriptors.ConnectTableDescriptor;
@@ -95,6 +96,7 @@ public interface TableEnvironment {
 	 *
 	 * @param source table source used as table
 	 */
+	@Deprecated
 	Table fromTableSource(TableSource<?> source);
 
 	/**
@@ -459,6 +461,7 @@ public interface TableEnvironment {
 	 * @param targetPath The path of the registered {@link TableSink} to which the {@link Table} is written.
 	 * @param table The Table to write to the sink.
 	 */
+	@Deprecated
 	void insertInto(String targetPath, Table table);
 
 	/**
@@ -600,6 +603,7 @@ public interface TableEnvironment {
 	 * @param extended if the plan should contain additional properties such as
 	 * e.g. estimated cost, traits
 	 */
+	@Deprecated
 	String explain(boolean extended);
 
 	/**
@@ -706,6 +710,7 @@ public interface TableEnvironment {
 	 *
 	 * @param stmt The SQL statement to evaluate.
 	 */
+	@Deprecated
 	void sqlUpdate(String stmt);
 
 	/**
@@ -863,5 +868,10 @@ public interface TableEnvironment {
 	 * @return The result of the job execution, containing elapsed time and accumulators.
 	 * @throws Exception which occurs during job execution.
 	 */
+	@Deprecated
 	JobExecutionResult execute(String jobName) throws Exception;
+
+	ResultTable executeStatement(String stmt) throws Exception;
+
+	DmlBatch createDmlBatch();
 }

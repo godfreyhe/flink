@@ -20,15 +20,16 @@ package org.apache.flink.table.utils
 
 import org.apache.flink.api.common.JobExecutionResult
 import org.apache.flink.api.common.typeinfo.TypeInformation
-import org.apache.flink.table.api.{Table, TableConfig, TableEnvironment}
+import org.apache.flink.table.DmlBatch
+import org.apache.flink.table.api.{ResultTable, Table, TableConfig, TableEnvironment}
 import org.apache.flink.table.catalog.Catalog
 import org.apache.flink.table.descriptors.{ConnectTableDescriptor, ConnectorDescriptor}
 import org.apache.flink.table.functions.{ScalarFunction, UserDefinedFunction}
+import org.apache.flink.table.module.Module
 import org.apache.flink.table.sinks.TableSink
 import org.apache.flink.table.sources.TableSource
-import java.util.Optional
 
-import org.apache.flink.table.module.Module
+import java.util.Optional
 
 class MockTableEnvironment extends TableEnvironment {
 
@@ -147,4 +148,8 @@ class MockTableEnvironment extends TableEnvironment {
     functionInstance: UserDefinedFunction): Unit = ???
 
   override def dropTemporaryFunction(path: String): Boolean = ???
+
+  override def executeStatement(stmt: String): ResultTable = ???
+
+  override def createDmlBatch(): DmlBatch = ???
 }

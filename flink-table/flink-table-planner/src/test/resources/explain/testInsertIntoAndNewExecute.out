@@ -1,0 +1,19 @@
+== Abstract Syntax Tree ==
+LogicalProject(id=[$1])
+  EnumerableTableScan(table=[[default_catalog, default_database, MyTable]])
+
+== Optimized Logical Plan ==
+StreamTableSourceScan(table=[[default_catalog, default_database, MyTable]], fields=[id], source=[CsvTableSource(read fields: id)])
+
+== Physical Execution Plan ==
+ : Data Source
+	content : collect elements with CollectionInputFormat
+
+	 : Operator
+		content : CsvTableSource(read fields: id)
+		ship_strategy : REBALANCE
+
+		 : Operator
+			content : Map
+			ship_strategy : FORWARD
+

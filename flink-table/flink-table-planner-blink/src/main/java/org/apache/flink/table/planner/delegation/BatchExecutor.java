@@ -20,11 +20,13 @@ package org.apache.flink.table.planner.delegation;
 
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.annotation.VisibleForTesting;
-import org.apache.flink.api.common.JobExecutionResult;
+import org.apache.flink.api.dag.Transformation;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.graph.StreamGraph;
 import org.apache.flink.table.delegation.Executor;
 import org.apache.flink.table.planner.utils.ExecutorUtils;
+
+import java.util.List;
 
 /**
  * An implementation of {@link Executor} that is backed by a {@link StreamExecutionEnvironment}.
@@ -39,16 +41,10 @@ public class BatchExecutor extends ExecutorBase {
 	}
 
 	@Override
-	public JobExecutionResult execute(String jobName) throws Exception {
-		StreamGraph streamGraph = getStreamGraph(jobName);
-		return getExecutionEnvironment().execute(streamGraph);
-	}
-
-	@Override
-	public StreamGraph getStreamGraph(String jobName) {
+	public StreamGraph getStreamGraph(List<Transformation<?>> transformations, String jobName) {
 		StreamExecutionEnvironment execEnv = getExecutionEnvironment();
 		ExecutorUtils.setBatchProperties(execEnv, tableConfig);
-		StreamGraph streamGraph = execEnv.getStreamGraph();
+		StreamGraph streamGraph = ExecutorUtils.generateStreamGraph(execEnv, transformations);
 		streamGraph.setJobName(getNonEmptyJobName(jobName));
 		ExecutorUtils.setBatchProperties(streamGraph, tableConfig);
 		return streamGraph;

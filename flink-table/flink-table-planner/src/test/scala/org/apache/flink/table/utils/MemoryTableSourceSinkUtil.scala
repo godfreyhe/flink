@@ -24,7 +24,7 @@ import org.apache.flink.api.common.typeinfo.TypeInformation
 import org.apache.flink.api.java.typeutils.RowTypeInfo
 import org.apache.flink.api.java.{DataSet, ExecutionEnvironment}
 import org.apache.flink.configuration.Configuration
-import org.apache.flink.streaming.api.datastream.DataStream
+import org.apache.flink.streaming.api.datastream.{DataStream, DataStreamSink}
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment
 import org.apache.flink.streaming.api.functions.sink.RichSinkFunction
 import org.apache.flink.streaming.api.functions.source.SourceFunction
@@ -32,6 +32,7 @@ import org.apache.flink.streaming.api.functions.source.SourceFunction.SourceCont
 import org.apache.flink.table.api.TableSchema
 import org.apache.flink.table.sinks._
 import org.apache.flink.table.sources._
+import org.apache.flink.table.util.TableConnectorUtil
 import org.apache.flink.types.Row
 
 import scala.collection.JavaConverters._
@@ -117,6 +118,10 @@ object MemoryTableSourceSinkUtil {
     }
 
     override def emitDataStream(dataStream: DataStream[Row]): Unit = {
+      consumeDataStream(dataStream)
+    }
+
+    override def consumeDataStream(dataStream: DataStream[Row]): DataStreamSink[Row] = {
       val inputParallelism = dataStream.getParallelism
       dataStream
         .addSink(new MemoryAppendSink)

@@ -60,8 +60,7 @@ public class BatchExecutorTest extends TestLogger {
 			}),
 			BasicTypeInfo.STRING_TYPE_INFO,
 			1);
-		batchExecutor.apply(Collections.singletonList(testTransform));
-		streamGraph = batchExecutor.getStreamGraph("Test Job");
+		streamGraph = batchExecutor.getStreamGraph(Collections.singletonList(testTransform), "Test Job");
 	}
 
 	@Test

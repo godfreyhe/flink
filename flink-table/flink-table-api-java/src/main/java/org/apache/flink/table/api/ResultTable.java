@@ -16,21 +16,14 @@
  * limitations under the License.
  */
 
-package org.apache.flink.table.utils;
+package org.apache.flink.table.api;
 
-import org.apache.flink.api.common.JobExecutionResult;
-import org.apache.flink.api.dag.Transformation;
-import org.apache.flink.table.delegation.Executor;
 
-import java.util.List;
+import org.apache.flink.types.Row;
 
-/**
- * Mocking {@link Executor} for tests.
- */
-public class ExecutorMock implements Executor {
+public interface ResultTable {
 
-	@Override
-	public JobExecutionResult execute(List<Transformation<?>> transformations, String jobName) throws Exception {
-		return null;
-	}
+	TableSchema getTableSchema();
+
+	Iterable<Row> getResultRows();
 }

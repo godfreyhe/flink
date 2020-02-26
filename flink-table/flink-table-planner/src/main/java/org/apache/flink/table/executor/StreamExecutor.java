@@ -23,6 +23,8 @@ import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.api.common.JobExecutionResult;
 import org.apache.flink.api.dag.Transformation;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.streaming.api.graph.StreamGraph;
+import org.apache.flink.streaming.api.graph.StreamGraphGenerator;
 import org.apache.flink.table.delegation.Executor;
 
 import java.util.List;
@@ -41,16 +43,27 @@ public class StreamExecutor implements Executor {
 	}
 
 	@Override
-	public void apply(List<Transformation<?>> transformations) {
-		transformations.forEach(executionEnvironment::addOperator);
-	}
-
-	@Override
-	public JobExecutionResult execute(String jobName) throws Exception {
-		return executionEnvironment.execute(jobName);
+	public JobExecutionResult execute(List<Transformation<?>> transformations, String jobName) throws Exception {
+		StreamGraph streamGraph = getStreamGraph(transformations, jobName);
+		return executionEnvironment.execute(streamGraph);
 	}
 
 	public StreamExecutionEnvironment getExecutionEnvironment() {
 		return executionEnvironment;
+	}
+
+	public StreamGraph getStreamGraph(List<Transformation<?>> transformations, String jobName) {
+		if (transformations.size() <= 0) {
+			throw new IllegalStateException("No operators defined in streaming topology. Cannot generate StreamGraph.");
+		}
+		return new StreamGraphGenerator(
+			transformations, executionEnvironment.getConfig(), executionEnvironment.getCheckpointConfig())
+			.setStateBackend(executionEnvironment.getStateBackend())
+			.setChaining(executionEnvironment.isChainingEnabled())
+			.setUserArtifacts(executionEnvironment.getCachedFiles())
+			.setTimeCharacteristic(executionEnvironment.getStreamTimeCharacteristic())
+			.setDefaultBufferTimeout(executionEnvironment.getBufferTimeout())
+			.setJobName(jobName)
+			.generate();
 	}
 }

@@ -35,19 +35,11 @@ import java.util.List;
 public interface Executor {
 
 	/**
-	 * Applies all given transformations. This should not run the transformations already, but just apply for
-	 * future execution via {@link #execute(String)}
-	 *
-	 * @param transformations list of transformations to apply
-	 */
-	void apply(List<Transformation<?>> transformations);
-
-	/**
-	 * Executes all the previously applied transformations via {@link #apply(List)}.
+	 * Executes all given transformations.
 	 *
 	 * @param jobName what should be the name of the job
 	 * @return The result of the job execution, containing elapsed time and accumulators.
 	 * @throws Exception which occurs during job execution.
 	 */
-	JobExecutionResult execute(String jobName) throws Exception;
+	JobExecutionResult execute(List<Transformation<?>> transformations, String jobName) throws Exception;
 }
