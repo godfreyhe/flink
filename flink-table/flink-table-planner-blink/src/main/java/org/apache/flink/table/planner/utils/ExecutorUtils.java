@@ -79,7 +79,9 @@ public class ExecutorUtils {
 				sn -> sn.setResources(ResourceSpec.UNKNOWN, ResourceSpec.UNKNOWN));
 		streamGraph.setChaining(true);
 		streamGraph.setAllVerticesInSameSlotSharingGroupByDefault(false);
-		streamGraph.setScheduleMode(ScheduleMode.LAZY_FROM_SOURCES_WITH_BATCH_SLOT_REQUEST);
+		String schedulingMode = tableConfig.getConfiguration().getString(
+			ExecutionConfigOptions.TABLE_EXEC_SCHEDULING_MODE).toUpperCase();
+		streamGraph.setScheduleMode(ScheduleMode.valueOf(schedulingMode));
 		streamGraph.setStateBackend(null);
 		if (streamGraph.getCheckpointConfig().isCheckpointingEnabled()) {
 			throw new IllegalArgumentException("Checkpoint is not supported for batch jobs.");

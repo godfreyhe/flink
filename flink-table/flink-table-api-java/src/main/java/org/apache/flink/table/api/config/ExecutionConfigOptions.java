@@ -221,4 +221,10 @@ public class ExecutionConfigOptions {
 				"batch: the job will run stage by stage. \n" +
 				"pipelined: the job will run in streaming mode, but it may cause resource deadlock that receiver waits for resource to start when " +
 				"the sender holds resource to wait to send data to the receiver.");
+
+	@Documentation.TableOption(execMode = Documentation.ExecMode.BATCH)
+	public static final ConfigOption<String> TABLE_EXEC_SCHEDULING_MODE =
+		key("table.exec.scheduling-mode")
+			.defaultValue("LAZY_FROM_SOURCES_WITH_BATCH_SLOT_REQUEST")
+			.withDescription("Sets exec scheduling mode. Only LAZY_FROM_SOURCES_WITH_BATCH_SLOT_REQUEST, LAZY_FROM_SOURCES or EAGER can be set.");
 }
