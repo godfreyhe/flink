@@ -19,7 +19,9 @@
 package org.apache.flink.table.planner.plan.rules.logical
 
 import org.apache.flink.table.api.TableException
+import org.apache.flink.table.api.config.OptimizerConfigOptions
 import org.apache.flink.table.plan.stats.TableStats
+import org.apache.flink.table.planner.calcite.FlinkContext
 import org.apache.flink.table.planner.plan.nodes.logical.{FlinkLogicalSort, FlinkLogicalTableSourceScan}
 import org.apache.flink.table.planner.plan.schema.{FlinkPreparingTableBase, TableSourceTable}
 import org.apache.flink.table.planner.plan.stats.FlinkStatistic
@@ -51,6 +53,12 @@ class PushLimitIntoTableSourceScanRule extends RelOptRule(
     operand(classOf[FlinkLogicalTableSourceScan], none)), "PushLimitIntoTableSourceScanRule") {
 
   override def matches(call: RelOptRuleCall): Boolean = {
+    val config = call.getPlanner.getContext.unwrap(classOf[FlinkContext]).getTableConfig
+    if (!config.getConfiguration.getBoolean(
+      OptimizerConfigOptions.TABLE_OPTIMIZER_SOURCE_LIMIT_PUSHDOWN_ENABLED)) {
+      return false
+    }
+
     val sort = call.rel(0).asInstanceOf[Sort]
     val onlyLimit = sort.getCollation.getFieldCollations.isEmpty && sort.fetch != null
     if (onlyLimit) {

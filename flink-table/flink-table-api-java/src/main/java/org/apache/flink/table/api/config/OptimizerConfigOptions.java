@@ -97,4 +97,15 @@ public class OptimizerConfigOptions {
 		key("table.optimizer.join-reorder-enabled")
 			.defaultValue(false)
 			.withDescription("Enables join reorder in optimizer. Default is disabled.");
+
+	public static final ConfigOption<Boolean> TABLE_OPTIMIZER_SOURCE_LIMIT_PUSHDOWN_ENABLED =
+		key("table.optimizer.source.limit-pushdown-enabled")
+			.defaultValue(true)
+			.withDescription("When it is true, the optimizer will push down limit into the LimitableTableSource. " +
+				"Default value is true.");
+
+	public static final ConfigOption<Boolean> TABLE_OPTIMIZER_TWO_PHASE_LIMIT_ENABLED =
+		key("table.optimizer.two-phase-limit-enabled")
+			.defaultValue(true)
+			.withDescription("When it is true, the optimizer will generate local limit and global limit");
 }

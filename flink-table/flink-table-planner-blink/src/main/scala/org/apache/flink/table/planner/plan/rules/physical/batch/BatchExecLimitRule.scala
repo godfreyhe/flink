@@ -18,6 +18,8 @@
 
 package org.apache.flink.table.planner.plan.rules.physical.batch
 
+import org.apache.flink.table.api.config.OptimizerConfigOptions
+import org.apache.flink.table.planner.calcite.FlinkContext
 import org.apache.flink.table.planner.plan.`trait`.FlinkRelDistribution
 import org.apache.flink.table.planner.plan.nodes.FlinkConventions
 import org.apache.flink.table.planner.plan.nodes.logical.FlinkLogicalSort
@@ -68,9 +70,12 @@ class BatchExecLimitRule
 
     val traitSet = input.getTraitSet.replace(FlinkConventions.BATCH_PHYSICAL)
     val newLocalInput = RelOptRule.convert(input, traitSet)
+    val tableConfig = sort.getCluster.getPlanner.getContext.unwrap(classOf[FlinkContext]).getTableConfig
+    val twoPhaseLimitEnabled = tableConfig.getConfiguration.getBoolean(
+      OptimizerConfigOptions.TABLE_OPTIMIZER_TWO_PHASE_LIMIT_ENABLED)
 
     // if fetch is null, there is no need to create local BatchExecLimit
-    val inputOfExchange = if (sort.fetch != null) {
+    val inputOfExchange = if (sort.fetch != null && twoPhaseLimitEnabled) {
       val providedLocalTraitSet = traitSet
       val limit = SortUtil.getLimitEnd(sort.offset, sort.fetch)
       val rexBuilder = sort.getCluster.getRexBuilder
