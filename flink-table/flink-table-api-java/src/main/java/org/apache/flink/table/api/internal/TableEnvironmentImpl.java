@@ -94,6 +94,9 @@ import org.apache.flink.table.sinks.TableSink;
 import org.apache.flink.table.sources.TableSource;
 import org.apache.flink.table.sources.TableSourceValidation;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -109,6 +112,8 @@ import java.util.stream.Collectors;
  */
 @Internal
 public class TableEnvironmentImpl implements TableEnvironment {
+	private static final Logger LOG = LoggerFactory.getLogger(TableEnvironmentImpl.class);
+
 	// Flag that tells if the TableSource/TableSink used in this environment is stream table source/sink,
 	// and this should always be true. This avoids too many hard code.
 	private static final boolean IS_STREAM_TABLE = true;
@@ -679,9 +684,12 @@ public class TableEnvironmentImpl implements TableEnvironment {
 	}
 
 	private void translate(List<ModifyOperation> modifyOperations) {
+		Long starTime = System.currentTimeMillis();
 		List<Transformation<?>> transformations = planner.translate(modifyOperations);
 
 		execEnv.apply(transformations);
+		Long endTime = System.currentTimeMillis();
+		LOG.debug("translate cost: " + (endTime - starTime));
 	}
 
 	private void buffer(List<ModifyOperation> modifyOperations) {

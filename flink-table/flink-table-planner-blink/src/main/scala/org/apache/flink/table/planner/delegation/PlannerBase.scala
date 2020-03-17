@@ -39,8 +39,8 @@ import org.apache.flink.table.planner.plan.reuse.SubplanReuser
 import org.apache.flink.table.planner.plan.utils.SameRelObjectShuttle
 import org.apache.flink.table.planner.sinks.DataStreamTableSink
 import org.apache.flink.table.planner.sinks.TableSinkUtils.{inferSinkPhysicalSchema, validateLogicalPhysicalTypesCompatible, validateSchemaAndApplyImplicitCast, validateTableSink}
-import org.apache.flink.table.planner.utils.JavaScalaConversionUtil
-import org.apache.flink.table.sinks.{OverwritableTableSink, TableSink}
+import org.apache.flink.table.planner.utils.{JavaScalaConversionUtil, Logging}
+import org.apache.flink.table.sinks.TableSink
 import org.apache.flink.table.types.utils.LegacyTypeInfoDataTypeConverter
 import org.apache.flink.table.utils.TableSchemaUtils
 
@@ -74,7 +74,8 @@ abstract class PlannerBase(
     val functionCatalog: FunctionCatalog,
     val catalogManager: CatalogManager,
     isStreamingMode: Boolean)
-  extends Planner {
+  extends Planner
+  with Logging {
 
   // temporary utility until we don't use planner expressions anymore
   functionCatalog.setPlannerTypeInferenceUtil(PlannerTypeInferenceUtilImpl.INSTANCE)
@@ -138,6 +139,7 @@ abstract class PlannerBase(
 
   override def translate(
       modifyOperations: util.List[ModifyOperation]): util.List[Transformation[_]] = {
+    LOG.debug("start translate...")
     if (modifyOperations.isEmpty) {
       return List.empty[Transformation[_]]
     }
@@ -147,10 +149,23 @@ abstract class PlannerBase(
       Thread.currentThread().getContextClassLoader)
     overrideEnvParallelism()
 
+    val startTime = System.currentTimeMillis()
     val relNodes = modifyOperations.map(translateToRel)
+    val toRelTime = System.currentTimeMillis()
+    LOG.debug(s"operation to rel cost: ${toRelTime - startTime}")
+
     val optimizedRelNodes = optimize(relNodes)
+    val optimizeTime = System.currentTimeMillis()
+    LOG.debug(s"optimizing cost: ${optimizeTime - toRelTime}")
+
     val execNodes = translateToExecNodePlan(optimizedRelNodes)
-    translateToPlan(execNodes)
+    val toExecNodeTime = System.currentTimeMillis()
+    LOG.debug(s"rel to exec node cost: ${toExecNodeTime - optimizeTime}")
+
+    val result = translateToPlan(execNodes)
+    val endTime = System.currentTimeMillis()
+    LOG.debug(s"exec node to transformation cost: ${endTime - toExecNodeTime}")
+    result
   }
 
   protected def overrideEnvParallelism(): Unit = {

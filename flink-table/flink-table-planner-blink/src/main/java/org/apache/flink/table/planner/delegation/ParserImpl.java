@@ -29,6 +29,8 @@ import org.apache.flink.table.planner.operations.SqlToOperationConverter;
 
 import org.apache.calcite.sql.SqlIdentifier;
 import org.apache.calcite.sql.SqlNode;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Collections;
 import java.util.List;
@@ -38,6 +40,7 @@ import java.util.function.Supplier;
  * Implementation of {@link Parser} that uses Calcite.
  */
 public class ParserImpl implements Parser {
+	private static final Logger LOG = LoggerFactory.getLogger(ParserImpl.class);
 
 	private final CatalogManager catalogManager;
 
@@ -60,11 +63,22 @@ public class ParserImpl implements Parser {
 	public List<Operation> parse(String statement) {
 		CalciteParser parser = calciteParserSupplier.get();
 		FlinkPlannerImpl planner = validatorSupplier.get();
+
+		long startTime = System.currentTimeMillis();
 		// parse the sql query
 		SqlNode parsed = parser.parse(statement);
+		long parserTime = System.currentTimeMillis();
+		if (LOG.isDebugEnabled()) {
+			LOG.debug("parse cost: " + (parserTime - startTime));
+		}
 
 		Operation operation = SqlToOperationConverter.convert(planner, catalogManager, parsed)
 			.orElseThrow(() -> new TableException("Unsupported query: " + statement));
+		long validateTime = System.currentTimeMillis();
+		if (LOG.isDebugEnabled()) {
+			LOG.debug("validate and to operation cost: " + (validateTime - parserTime));
+		}
+
 		return Collections.singletonList(operation);
 	}
 

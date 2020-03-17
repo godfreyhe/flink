@@ -39,6 +39,8 @@ import org.apache.calcite.schema.Schema;
 import org.apache.calcite.schema.SchemaPlus;
 import org.apache.calcite.schema.Schemas;
 import org.apache.calcite.schema.Table;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.HashSet;
 import java.util.Optional;
@@ -52,6 +54,8 @@ import static org.apache.flink.table.planner.utils.CatalogTableStatisticsConvert
  * Tables are registered as tables in the schema.
  */
 class DatabaseCalciteSchema extends FlinkSchema {
+	private static final Logger LOG = LoggerFactory.getLogger(DatabaseCalciteSchema.class);
+
 	private final String databaseName;
 	private final String catalogName;
 	private final CatalogManager catalogManager;
@@ -71,7 +75,12 @@ class DatabaseCalciteSchema extends FlinkSchema {
 		return catalogManager.getTable(identifier)
 			.map(result -> {
 				CatalogBaseTable table = result.getTable();
+				long startStat = System.currentTimeMillis();
 				FlinkStatistic statistic = getStatistic(result.isTemporary(), table, identifier);
+				long endStat = System.currentTimeMillis();
+				if (LOG.isDebugEnabled()) {
+					LOG.debug("get statistics cost: " + (endStat - startStat));
+				}
 				return new CatalogSchemaTable(identifier,
 					table,
 					statistic,

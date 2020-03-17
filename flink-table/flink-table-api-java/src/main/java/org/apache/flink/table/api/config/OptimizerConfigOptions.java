@@ -108,4 +108,9 @@ public class OptimizerConfigOptions {
 		key("table.optimizer.two-phase-limit-enabled")
 			.defaultValue(true)
 			.withDescription("When it is true, the optimizer will generate local limit and global limit");
+
+	public static final ConfigOption<Boolean> TABLE_OPTIMIZER_LOG_OPTIMIZED_RESULT_ENABLED =
+			key("table.optimizer.log-optimized-result-enabled")
+				.defaultValue(false)
+				.withDescription("When it is true, the optimizer will print the optimized result for each stage into log");
 }

@@ -19,6 +19,7 @@
 package org.apache.flink.table.planner.plan.optimize.program
 
 import org.apache.flink.table.api.TableException
+import org.apache.flink.table.api.config.OptimizerConfigOptions
 import org.apache.flink.table.planner.plan.utils.FlinkRelOptUtil
 import org.apache.flink.table.planner.utils.Logging
 import org.apache.flink.util.Preconditions
@@ -63,8 +64,11 @@ class FlinkChainedProgram[OC <: FlinkOptimizeContext]
         val end = System.currentTimeMillis()
 
         if (LOG.isDebugEnabled) {
-          LOG.debug(s"optimize $name cost ${end - start} ms.\n" +
-            s"optimize result: \n${FlinkRelOptUtil.toString(result)}")
+          LOG.debug(s"optimize $name cost ${end - start} ms.\n")
+        }
+        if (context.getTableConfig.getConfiguration.getBoolean(
+          OptimizerConfigOptions.TABLE_OPTIMIZER_LOG_OPTIMIZED_RESULT_ENABLED)) {
+          LOG.info(s"optimize result: \n${FlinkRelOptUtil.toString(result)}")
         }
 
         result

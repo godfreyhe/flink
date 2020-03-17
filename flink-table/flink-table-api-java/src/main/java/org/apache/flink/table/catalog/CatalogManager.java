@@ -247,6 +247,7 @@ public class CatalogManager {
 	 * @return table that the path points to.
 	 */
 	public Optional<TableLookupResult> getTable(ObjectIdentifier objectIdentifier) {
+		long startTime = System.currentTimeMillis();
 		try {
 			CatalogBaseTable temporaryTable = temporaryTables.get(objectIdentifier);
 			if (temporaryTable != null) {
@@ -255,6 +256,10 @@ public class CatalogManager {
 				return getPermanentTable(objectIdentifier);
 			}
 		} catch (TableNotExistException ignored) {
+		}
+		long endTime = System.currentTimeMillis();
+		if (LOG.isDebugEnabled()) {
+			LOG.debug("get table cost: " + (endTime - startTime));
 		}
 		return Optional.empty();
 	}
