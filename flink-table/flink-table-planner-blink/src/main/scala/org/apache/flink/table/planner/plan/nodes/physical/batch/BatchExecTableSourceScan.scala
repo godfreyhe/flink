@@ -49,7 +49,6 @@ import java.util.function.{Function => JFunction}
 import java.{lang, util}
 
 import scala.collection.JavaConversions._
-import scala.collection.JavaConverters._
 
 /**
   * Batch physical RelNode to read data from an external source defined by a
@@ -94,6 +93,7 @@ class BatchExecTableSourceScan(
       planner: BatchPlanner): Transformation[BaseRow] = {
     val config = planner.getTableConfig
     val inputTransform = getSourceTransformation(planner.getExecEnv)
+    inputTransform.setName(s"${getQueryId(config)}:${inputTransform.getName}")
 
     val fieldIndexes = computeIndexMapping()
 

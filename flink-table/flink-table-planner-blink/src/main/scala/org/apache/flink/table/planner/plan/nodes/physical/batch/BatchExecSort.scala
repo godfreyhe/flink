@@ -123,7 +123,7 @@ class BatchExecSort(
       ExecutionConfigOptions.TABLE_EXEC_RESOURCE_SORT_MEMORY)).getBytes
     ExecNode.createOneInputTransformation(
       input,
-      getRelDetailedDescription,
+      s"${getQueryId(conf)}:$getRelDetailedDescription",
       SimpleOperatorFactory.of(operator.asInstanceOf[OneInputStreamOperator[BaseRow, BaseRow]]),
       BaseRowTypeInfo.of(outputType),
       input.getParallelism,

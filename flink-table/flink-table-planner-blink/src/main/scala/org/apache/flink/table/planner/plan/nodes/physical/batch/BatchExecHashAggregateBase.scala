@@ -142,7 +142,7 @@ abstract class BatchExecHashAggregateBase(
     val operator = new CodeGenOperatorFactory[BaseRow](generatedOperator)
     ExecNode.createOneInputTransformation(
       input,
-      getRelDetailedDescription,
+      s"${getQueryId(config)}:$getRelDetailedDescription",
       operator,
       BaseRowTypeInfo.of(outputType),
       input.getParallelism,

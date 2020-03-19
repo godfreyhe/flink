@@ -257,7 +257,7 @@ class BatchExecHashJoin(
     ExecNode.createTwoInputTransformation(
       build,
       probe,
-      getRelDetailedDescription,
+      s"${getQueryId(config)}:$getRelDetailedDescription",
       operator,
       BaseRowTypeInfo.of(FlinkTypeFactory.toLogicalRowType(getRowType)),
       probe.getParallelism,
