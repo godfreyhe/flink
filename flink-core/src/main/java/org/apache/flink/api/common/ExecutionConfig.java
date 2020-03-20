@@ -167,6 +167,8 @@ public class ExecutionConfig implements Serializable, Archiveable<ArchivedExecut
 	/** The default input dependency constraint to schedule tasks. */
 	private InputDependencyConstraint defaultInputDependencyConstraint = InputDependencyConstraint.ANY;
 
+	private boolean isSlotSharingEnabled = true;
+
 	// ------------------------------- User code values --------------------------------------------
 
 	private GlobalJobParameters globalJobParameters = new GlobalJobParameters();
@@ -187,6 +189,21 @@ public class ExecutionConfig implements Serializable, Archiveable<ArchivedExecut
 	private LinkedHashSet<Class<?>> registeredPojoTypes = new LinkedHashSet<>();
 
 	// --------------------------------------------------------------------------------------------
+
+	/**
+	 * Sets isSlotSharingEnabled.
+	 */
+	public ExecutionConfig setSlotSharing(boolean isSlotSharingEnabled) {
+		this.isSlotSharingEnabled = isSlotSharingEnabled;
+		return this;
+	}
+
+	/**
+	 * Gets isSlotSharingEnabled.
+	 */
+	public boolean isSlotSharingEnabled() {
+		return isSlotSharingEnabled;
+	}
 
 	/**
 	 * Enables the ClosureCleaner. This analyzes user code functions and sets fields to null
@@ -1003,7 +1020,8 @@ public class ExecutionConfig implements Serializable, Archiveable<ArchivedExecut
 				registeredPojoTypes.equals(other.registeredPojoTypes) &&
 				taskCancellationIntervalMillis == other.taskCancellationIntervalMillis &&
 				useSnapshotCompression == other.useSnapshotCompression &&
-				defaultInputDependencyConstraint == other.defaultInputDependencyConstraint;
+				defaultInputDependencyConstraint == other.defaultInputDependencyConstraint &&
+				isSlotSharingEnabled == other.isSlotSharingEnabled;
 
 		} else {
 			return false;
@@ -1031,7 +1049,8 @@ public class ExecutionConfig implements Serializable, Archiveable<ArchivedExecut
 			registeredPojoTypes,
 			taskCancellationIntervalMillis,
 			useSnapshotCompression,
-			defaultInputDependencyConstraint);
+			defaultInputDependencyConstraint,
+			isSlotSharingEnabled);
 	}
 
 	@Override
@@ -1066,6 +1085,7 @@ public class ExecutionConfig implements Serializable, Archiveable<ArchivedExecut
 			", defaultKryoSerializerClasses=" + defaultKryoSerializerClasses +
 			", registeredKryoTypes=" + registeredKryoTypes +
 			", registeredPojoTypes=" + registeredPojoTypes +
+			", isSlotSharingEnabled=" + isSlotSharingEnabled +
 			'}';
 	}
 

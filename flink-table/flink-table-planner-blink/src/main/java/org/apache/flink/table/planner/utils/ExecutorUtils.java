@@ -69,6 +69,8 @@ public class ExecutorUtils {
 		if (isShuffleModeAllBatch(tableConfig)) {
 			executionConfig.setDefaultInputDependencyConstraint(InputDependencyConstraint.ALL);
 		}
+		execEnv.getConfig().setSlotSharing(
+				tableConfig.getConfiguration().getBoolean(ExecutionConfigOptions.TABLE_EXEC_SLOT_SHARING_ENABLED));
 	}
 
 	/**
@@ -89,6 +91,8 @@ public class ExecutorUtils {
 		if (ExecutorUtils.isShuffleModeAllBatch(tableConfig)) {
 			streamGraph.setBlockingConnectionsBetweenChains(true);
 		}
+		streamGraph.getExecutionConfig().setSlotSharing(
+				tableConfig.getConfiguration().getBoolean(ExecutionConfigOptions.TABLE_EXEC_SLOT_SHARING_ENABLED));
 	}
 
 	private static boolean isShuffleModeAllBatch(TableConfig tableConfig) {

@@ -493,7 +493,7 @@ public class StreamGraphGenerator {
 			}
 		}
 
-		String slotSharingGroup = determineSlotSharingGroup(null, allFeedbackIds);
+		String slotSharingGroup = determineSlotSharingGroup(null, allFeedbackIds, true);
 		// slot sharing group of iteration node must exist
 		if (slotSharingGroup == null) {
 			slotSharingGroup = "SlotSharingGroup-" + iterate.getId();
@@ -560,7 +560,7 @@ public class StreamGraphGenerator {
 			}
 		}
 
-		String slotSharingGroup = determineSlotSharingGroup(null, allFeedbackIds);
+		String slotSharingGroup = determineSlotSharingGroup(null, allFeedbackIds, true);
 
 		itSink.setSlotSharingGroup(slotSharingGroup);
 		itSource.setSlotSharingGroup(slotSharingGroup);
@@ -572,7 +572,7 @@ public class StreamGraphGenerator {
 	 * Transforms a {@code SourceTransformation}.
 	 */
 	private <T> Collection<Integer> transformSource(SourceTransformation<T> source) {
-		String slotSharingGroup = determineSlotSharingGroup(source.getSlotSharingGroup(), Collections.emptyList());
+		String slotSharingGroup = determineSlotSharingGroup(source.getSlotSharingGroup(), Collections.emptyList(), false);
 
 		streamGraph.addSource(source.getId(),
 				slotSharingGroup,
@@ -599,7 +599,7 @@ public class StreamGraphGenerator {
 
 		Collection<Integer> inputIds = transform(sink.getInput());
 
-		String slotSharingGroup = determineSlotSharingGroup(sink.getSlotSharingGroup(), inputIds);
+		String slotSharingGroup = determineSlotSharingGroup(sink.getSlotSharingGroup(), inputIds, false);
 
 		streamGraph.addSink(sink.getId(),
 				slotSharingGroup,
@@ -649,7 +649,7 @@ public class StreamGraphGenerator {
 			return alreadyTransformed.get(transform);
 		}
 
-		String slotSharingGroup = determineSlotSharingGroup(transform.getSlotSharingGroup(), inputIds);
+		String slotSharingGroup = determineSlotSharingGroup(transform.getSlotSharingGroup(), inputIds, false);
 
 		streamGraph.addOperator(transform.getId(),
 				slotSharingGroup,
@@ -696,7 +696,7 @@ public class StreamGraphGenerator {
 		allInputIds.addAll(inputIds1);
 		allInputIds.addAll(inputIds2);
 
-		String slotSharingGroup = determineSlotSharingGroup(transform.getSlotSharingGroup(), allInputIds);
+		String slotSharingGroup = determineSlotSharingGroup(transform.getSlotSharingGroup(), allInputIds, false);
 
 		streamGraph.addCoOperator(
 				transform.getId(),
@@ -746,7 +746,10 @@ public class StreamGraphGenerator {
 	 * @param specifiedGroup The group specified by the user.
 	 * @param inputIds The IDs of the input operations.
 	 */
-	private String determineSlotSharingGroup(String specifiedGroup, Collection<Integer> inputIds) {
+	private String determineSlotSharingGroup(String specifiedGroup, Collection<Integer> inputIds, boolean isSlotSharingForced) {
+		if (!executionConfig.isSlotSharingEnabled() && !isSlotSharingForced) {
+			return null;
+		}
 		if (specifiedGroup != null) {
 			return specifiedGroup;
 		} else {

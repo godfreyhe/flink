@@ -227,4 +227,10 @@ public class ExecutionConfigOptions {
 		key("table.exec.scheduling-mode")
 			.defaultValue("LAZY_FROM_SOURCES_WITH_BATCH_SLOT_REQUEST")
 			.withDescription("Sets exec scheduling mode. Only LAZY_FROM_SOURCES_WITH_BATCH_SLOT_REQUEST, LAZY_FROM_SOURCES or EAGER can be set.");
+
+	@Documentation.TableOption(execMode = Documentation.ExecMode.BATCH)
+	public static final ConfigOption<Boolean> TABLE_EXEC_SLOT_SHARING_ENABLED =
+			key("table.exec.slot-sharing-enabled")
+					.defaultValue(false)
+					.withDescription("Whether enabled slot sharing, Default is true.");
 }

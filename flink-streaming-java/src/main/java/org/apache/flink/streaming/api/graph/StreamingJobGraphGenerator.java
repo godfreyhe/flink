@@ -82,7 +82,6 @@ import java.util.Map.Entry;
 import java.util.Set;
 
 import static org.apache.flink.runtime.jobgraph.tasks.CheckpointCoordinatorConfiguration.MINIMAL_CHECKPOINT_TIME;
-import static org.apache.flink.util.Preconditions.checkState;
 
 /**
  * The StreamingJobGraphGenerator converts a {@link StreamGraph} into a {@link JobGraph}.
@@ -718,8 +717,10 @@ public class StreamingJobGraphGenerator {
 			final JobVertex jobVertex = entry.getValue();
 
 			final SlotSharingGroup jobVertexSlotSharingGroup = jobVertex.getSlotSharingGroup();
+			if (jobVertexSlotSharingGroup == null) {
+				continue;
+			}
 
-			checkState(jobVertexSlotSharingGroup != null, "JobVertex slot sharing group must not be null");
 			slotSharingGroups.add(jobVertexSlotSharingGroup);
 
 			vertexHeadOperators.put(jobVertex.getID(), headOperatorId);
@@ -730,15 +731,77 @@ public class StreamingJobGraphGenerator {
 			vertexOperators.put(jobVertex.getID(), operatorIds);
 		}
 
-		for (SlotSharingGroup slotSharingGroup : slotSharingGroups) {
-			setManagedMemoryFractionForSlotSharingGroup(
-				slotSharingGroup,
-				vertexHeadOperators,
-				vertexOperators,
-				operatorConfigs,
-				vertexChainedConfigs,
-				operatorResourceRetriever,
-				operatorManagedMemoryWeightRetriever);
+		if (slotSharingGroups.isEmpty()) {
+			setManagedMemoryFractionForJobVertexes(
+					jobVertices,
+					operatorConfigs,
+					vertexChainedConfigs,
+					operatorResourceRetriever,
+					operatorManagedMemoryWeightRetriever
+			);
+		} else {
+			for (SlotSharingGroup slotSharingGroup : slotSharingGroups) {
+				setManagedMemoryFractionForSlotSharingGroup(
+						slotSharingGroup,
+						vertexHeadOperators,
+						vertexOperators,
+						operatorConfigs,
+						vertexChainedConfigs,
+						operatorResourceRetriever,
+						operatorManagedMemoryWeightRetriever);
+			}
+		}
+	}
+
+	private static void setManagedMemoryFractionForJobVertexes(
+			final Map<Integer, JobVertex> jobVertices,
+			final Map<Integer, StreamConfig> operatorConfigs,
+			final Map<Integer, Map<Integer, StreamConfig>> vertexChainedConfigs,
+			final java.util.function.Function<Integer, ResourceSpec> operatorResourceRetriever,
+			final java.util.function.Function<Integer, Integer> operatorManagedMemoryWeightRetriever) {
+		final Map<JobVertexID, Set<Integer>> vertexOperators = new HashMap<>();
+		final Map<JobVertexID, ResourceSpec> vertexResourceSpecs = new HashMap<>();
+
+		for (Entry<Integer, JobVertex> entry : jobVertices.entrySet()) {
+			final int headOperatorId = entry.getKey();
+			final JobVertex jobVertex = entry.getValue();
+			final Set<Integer> operatorIds = new HashSet<>();
+			operatorIds.add(headOperatorId);
+			operatorIds.addAll(vertexChainedConfigs.getOrDefault(headOperatorId, Collections.emptyMap()).keySet());
+			ResourceSpec vertexResourceSpec = ResourceSpec.UNKNOWN;
+			for (int operatorNodeId : operatorIds) {
+				final ResourceSpec operatorResourceSpec = operatorResourceRetriever.apply(operatorNodeId);
+				vertexResourceSpec.merge(operatorResourceSpec);
+			}
+
+			vertexOperators.put(jobVertex.getID(), operatorIds);
+			vertexResourceSpecs.put(jobVertex.getID(), vertexResourceSpec);
+		}
+
+		for (Entry<Integer, JobVertex> entry : jobVertices.entrySet()) {
+			final int headOperatorId = entry.getKey();
+			final JobVertex jobVertex = entry.getValue();
+
+			final int groupManagedMemoryWeight = vertexOperators.get(jobVertex.getID()).stream()
+					.mapToInt(operatorManagedMemoryWeightRetriever::apply)
+					.sum();
+			final Set<Integer> operatorIds = vertexOperators.get(jobVertex.getID());
+
+			for (int operatorNodeId : operatorIds) {
+				final StreamConfig operatorConfig = operatorConfigs.get(operatorNodeId);
+				final ResourceSpec operatorResourceSpec = operatorResourceRetriever.apply(operatorNodeId);
+				final int operatorManagedMemoryWeight = operatorManagedMemoryWeightRetriever.apply(operatorNodeId);
+				setManagedMemoryFractionForOperator(
+						operatorResourceSpec,
+						vertexResourceSpecs.get(jobVertex.getID()),
+						operatorManagedMemoryWeight,
+						groupManagedMemoryWeight,
+						operatorConfig);
+			}
+
+			// need to refresh the chained task configs because they are serialized
+			final StreamConfig vertexConfig = operatorConfigs.get(headOperatorId);
+			vertexConfig.setTransitiveChainedTaskConfigs(vertexChainedConfigs.get(headOperatorId));
 		}
 	}
 
