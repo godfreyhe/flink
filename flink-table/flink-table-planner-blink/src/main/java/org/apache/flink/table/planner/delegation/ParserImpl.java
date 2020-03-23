@@ -74,8 +74,8 @@ public class ParserImpl implements Parser {
 
 		Operation operation = SqlToOperationConverter.convert(planner, catalogManager, parsed)
 			.orElseThrow(() -> new TableException("Unsupported query: " + statement));
-		long validateTime = System.currentTimeMillis();
 		if (LOG.isDebugEnabled()) {
+			long validateTime = System.currentTimeMillis();
 			LOG.debug("validate and to operation cost: " + (validateTime - parserTime));
 		}
 

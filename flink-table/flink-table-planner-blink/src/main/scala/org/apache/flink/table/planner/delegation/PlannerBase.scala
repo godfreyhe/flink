@@ -139,7 +139,10 @@ abstract class PlannerBase(
 
   override def translate(
       modifyOperations: util.List[ModifyOperation]): util.List[Transformation[_]] = {
-    LOG.debug("start translate...")
+    if (LOG.isDebugEnabled()) {
+      LOG.debug("start translate...")
+    }
+    val queryId = config.getConfiguration.getString("query.id", "")
     if (modifyOperations.isEmpty) {
       return List.empty[Transformation[_]]
     }
@@ -152,19 +155,27 @@ abstract class PlannerBase(
     val startTime = System.currentTimeMillis()
     val relNodes = modifyOperations.map(translateToRel)
     val toRelTime = System.currentTimeMillis()
-    LOG.debug(s"operation to rel cost: ${toRelTime - startTime}")
+    if (LOG.isDebugEnabled()) {
+      LOG.debug(s"operation to rel cost: ${toRelTime - startTime}, id: $queryId")
+    }
 
     val optimizedRelNodes = optimize(relNodes)
     val optimizeTime = System.currentTimeMillis()
-    LOG.debug(s"optimizing cost: ${optimizeTime - toRelTime}")
+    if (LOG.isDebugEnabled()) {
+      LOG.debug(s"optimizing cost: ${optimizeTime - toRelTime}, id: $queryId")
+    }
 
     val execNodes = translateToExecNodePlan(optimizedRelNodes)
     val toExecNodeTime = System.currentTimeMillis()
-    LOG.debug(s"rel to exec node cost: ${toExecNodeTime - optimizeTime}")
+    if (LOG.isDebugEnabled()) {
+      LOG.debug(s"rel to exec node cost: ${toExecNodeTime - optimizeTime}, id: $queryId")
+    }
 
     val result = translateToPlan(execNodes)
-    val endTime = System.currentTimeMillis()
-    LOG.debug(s"exec node to transformation cost: ${endTime - toExecNodeTime}")
+    if (LOG.isDebugEnabled()) {
+      val endTime = System.currentTimeMillis()
+      LOG.debug(s"exec node to transformation cost: ${endTime - toExecNodeTime}, id: $queryId")
+    }
     result
   }
 

@@ -129,7 +129,12 @@ public class HiveTableSource implements
 
 	@Override
 	public DataStream<BaseRow> getDataStream(StreamExecutionEnvironment execEnv) {
+		long startTime = System.currentTimeMillis();
 		List<HiveTablePartition> allHivePartitions = initAllPartitions();
+		long getAllPartitionsTime = System.currentTimeMillis();
+		if (LOG.isDebugEnabled()) {
+			LOG.debug(tablePath.getFullName() + " get all partitions cost: " + (getAllPartitionsTime - startTime));
+		}
 
 		@SuppressWarnings("unchecked")
 		TypeInformation<BaseRow> typeInfo =
@@ -159,6 +164,10 @@ public class HiveTableSource implements
 				throw new FlinkHiveException(e);
 			}
 			source.setParallelism(Math.min(Math.max(1, splitNum), max));
+		}
+		if (LOG.isDebugEnabled()) {
+			long getDataStreamTime = System.currentTimeMillis();
+			LOG.debug(tablePath.getFullName() + " get data stream cost: " + (getDataStreamTime - startTime));
 		}
 		return source.name(explainSource());
 	}

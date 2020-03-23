@@ -684,12 +684,15 @@ public class TableEnvironmentImpl implements TableEnvironment {
 	}
 
 	private void translate(List<ModifyOperation> modifyOperations) {
+		String queryId = tableConfig.getConfiguration().getString("query.id", "");
 		Long starTime = System.currentTimeMillis();
 		List<Transformation<?>> transformations = planner.translate(modifyOperations);
 
 		execEnv.apply(transformations);
-		Long endTime = System.currentTimeMillis();
-		LOG.debug("translate cost: " + (endTime - starTime));
+		if (LOG.isDebugEnabled()) {
+			Long endTime = System.currentTimeMillis();
+			LOG.debug("translate cost: " + (endTime - starTime) + ", id: " + queryId);
+		}
 	}
 
 	private void buffer(List<ModifyOperation> modifyOperations) {

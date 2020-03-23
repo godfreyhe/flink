@@ -25,6 +25,7 @@ import org.apache.flink.streaming.api.transformations.{OneInputTransformation, T
 import org.apache.flink.table.api.TableException
 import org.apache.flink.table.delegation.Planner
 import org.apache.flink.table.planner.plan.nodes.physical.FlinkPhysicalRel
+import org.apache.flink.table.planner.utils.Logging
 
 import org.apache.calcite.rel.RelDistribution
 import org.apache.calcite.rel.core.Exchange
@@ -39,7 +40,7 @@ import scala.collection.JavaConversions._
   * @tparam E The Planner
   * @tparam T The type of the elements that result from this [[Transformation]]
   */
-trait ExecNode[E <: Planner, T] {
+trait ExecNode[E <: Planner, T] extends Logging {
 
   /**
     * The [[Transformation]] translated from this node.
@@ -55,7 +56,12 @@ trait ExecNode[E <: Planner, T] {
     */
   def translateToPlan(planner: E): Transformation[T] = {
     if (transformation == null) {
+      val startTime = System.currentTimeMillis()
       transformation = translateToPlanInternal(planner)
+      if (LOG.isDebugEnabled()) {
+        val endTime = System.currentTimeMillis()
+        LOG.debug(s"translate ${getClass.getSimpleName} to plan cost: ${endTime - startTime}")
+      }
     }
     transformation
   }

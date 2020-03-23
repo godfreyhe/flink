@@ -77,8 +77,8 @@ class DatabaseCalciteSchema extends FlinkSchema {
 				CatalogBaseTable table = result.getTable();
 				long startStat = System.currentTimeMillis();
 				FlinkStatistic statistic = getStatistic(result.isTemporary(), table, identifier);
-				long endStat = System.currentTimeMillis();
 				if (LOG.isDebugEnabled()) {
+					long endStat = System.currentTimeMillis();
 					LOG.debug("get statistics cost: " + (endStat - startStat));
 				}
 				return new CatalogSchemaTable(identifier,

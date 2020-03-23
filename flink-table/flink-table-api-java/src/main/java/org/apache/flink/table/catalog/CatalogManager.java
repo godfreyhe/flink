@@ -257,8 +257,8 @@ public class CatalogManager {
 			}
 		} catch (TableNotExistException ignored) {
 		}
-		long endTime = System.currentTimeMillis();
 		if (LOG.isDebugEnabled()) {
+			long endTime = System.currentTimeMillis();
 			LOG.debug("get table cost: " + (endTime - startTime));
 		}
 		return Optional.empty();
