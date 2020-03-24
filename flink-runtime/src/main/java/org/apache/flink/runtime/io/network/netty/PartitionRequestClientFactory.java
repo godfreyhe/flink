@@ -29,6 +29,9 @@ import org.apache.flink.shaded.netty4.io.netty.channel.Channel;
 import org.apache.flink.shaded.netty4.io.netty.channel.ChannelFuture;
 import org.apache.flink.shaded.netty4.io.netty.channel.ChannelFutureListener;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.IOException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -40,6 +43,8 @@ import java.util.concurrent.ConcurrentMap;
  * instances.
  */
 class PartitionRequestClientFactory {
+
+	private static final Logger LOG = LoggerFactory.getLogger(PartitionRequestClientFactory.class);
 
 	private final NettyClient nettyClient;
 
@@ -56,6 +61,8 @@ class PartitionRequestClientFactory {
 	NettyPartitionRequestClient createPartitionRequestClient(ConnectionID connectionId) throws IOException, InterruptedException {
 		Object entry;
 		NettyPartitionRequestClient client = null;
+
+		long startTime = System.currentTimeMillis();
 
 		while (client == null) {
 			entry = clients.get(connectionId);
@@ -104,6 +111,9 @@ class PartitionRequestClientFactory {
 				client = null;
 			}
 		}
+
+		long endTime = System.currentTimeMillis();
+		LOG.info("create connection for " + connectionId.toString() + " cost: " + (endTime - startTime));
 
 		return client;
 	}
