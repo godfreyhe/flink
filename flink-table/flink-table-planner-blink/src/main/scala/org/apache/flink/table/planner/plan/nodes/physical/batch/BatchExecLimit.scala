@@ -19,7 +19,8 @@ package org.apache.flink.table.planner.plan.nodes.physical.batch
 
 import org.apache.flink.api.dag.Transformation
 import org.apache.flink.runtime.operators.DamBehavior
-import org.apache.flink.streaming.api.operators.SimpleOperatorFactory
+import org.apache.flink.streaming.api.operators.{ChainingStrategy, SimpleOperatorFactory}
+import org.apache.flink.table.api.config.ExecutionConfigOptions
 import org.apache.flink.table.dataformat.BaseRow
 import org.apache.flink.table.planner.delegation.BatchPlanner
 import org.apache.flink.table.planner.plan.cost.FlinkCost._
@@ -102,15 +103,25 @@ class BatchExecLimit(
 
   override protected def translateToPlanInternal(
       planner: BatchPlanner): Transformation[BaseRow] = {
+    val conf = planner.getTableConfig
     val input = getInputNodes.get(0).translateToPlan(planner)
         .asInstanceOf[Transformation[BaseRow]]
     val inputType = input.getOutputType
     val operator = new LimitOperator(isGlobal, limitStart, limitEnd)
-    ExecNode.createOneInputTransformation(
+    val op = ExecNode.createOneInputTransformation(
       input,
       getRelDetailedDescription,
       SimpleOperatorFactory.of(operator),
       inputType,
       input.getParallelism)
+    if (!isGlobal) {
+      val strategy = conf.getConfiguration.getString(
+        ExecutionConfigOptions.TABLE_EXEC_LOCAL_LIMIT_CHAINING_STRATEGY).toUpperCase()
+      op.setChainingStrategy(ChainingStrategy.valueOf(strategy))
+      if (strategy.equals("NEVER")) {
+        op.setName(getQueryId(conf) + ":" + op.getName)
+      }
+    }
+    op
   }
 }

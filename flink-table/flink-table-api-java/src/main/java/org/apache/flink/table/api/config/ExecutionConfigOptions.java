@@ -233,4 +233,10 @@ public class ExecutionConfigOptions {
 			key("table.exec.slot-sharing-enabled")
 					.defaultValue(false)
 					.withDescription("Whether enabled slot sharing, Default is true.");
+
+	@Documentation.TableOption(execMode = Documentation.ExecMode.BATCH)
+	public static final ConfigOption<String> TABLE_EXEC_LOCAL_LIMIT_CHAINING_STRATEGY =
+			key("table.exec.local-limit-chaining-strategy")
+					.defaultValue("HEAD")
+					.withDescription("Sets chaining strategy from local limit. Only ALWAYS, NEVER, HEAD can be set.");
 }
