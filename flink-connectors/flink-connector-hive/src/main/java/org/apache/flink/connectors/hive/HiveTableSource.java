@@ -140,7 +140,10 @@ public class HiveTableSource implements
 		TypeInformation<BaseRow> typeInfo =
 				(TypeInformation<BaseRow>) TypeInfoDataTypeConverter.fromDataTypeToTypeInfo(getProducedDataType());
 		Configuration conf = GlobalConfiguration.loadConfiguration();
-		HiveTableInputFormat inputFormat = getInputFormat(allHivePartitions, conf.getBoolean(HiveOptions.TABLE_EXEC_HIVE_FALLBACK_MAPRED_READER));
+
+		HiveTableInputFormat inputFormat = getInputFormat(allHivePartitions,
+				conf.getBoolean(HiveOptions.TABLE_EXEC_HIVE_FALLBACK_MAPRED_READER),
+				conf.getBoolean(HiveOptions.TABLE_EXEC_HIVE_IN_MEMORY_LINEORDER_TABLE_ENABLED));
 		DataStreamSource<BaseRow> source = execEnv.createInput(inputFormat, typeInfo);
 
 		if (conf.getBoolean(HiveOptions.TABLE_EXEC_HIVE_INFER_SOURCE_PARALLELISM)) {
@@ -173,9 +176,16 @@ public class HiveTableSource implements
 	}
 
 	@VisibleForTesting
-	HiveTableInputFormat getInputFormat(List<HiveTablePartition> allHivePartitions, boolean useMapRedReader) {
+	HiveTableInputFormat getInputFormat(List<HiveTablePartition> allHivePartitions, boolean useMapRedReader,
+			boolean inMemoryLineorderTableEnabled) {
+		boolean isLineorderTable = tablePath.getFullName().toLowerCase().contains("lineorder");
+		boolean useLineorderReader = inMemoryLineorderTableEnabled && isLineorderTable;
+		if (isLineorderTable) {
+			LOG.info("in-memory lineorder table is " + inMemoryLineorderTableEnabled);
+		}
+
 		return new HiveTableInputFormat(
-				jobConf, catalogTable, allHivePartitions, projectedFields, limit, hiveVersion, useMapRedReader);
+				jobConf, catalogTable, allHivePartitions, projectedFields, limit, hiveVersion, useMapRedReader, useLineorderReader);
 	}
 
 	@Override

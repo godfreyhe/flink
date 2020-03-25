@@ -471,7 +471,8 @@ public class HiveTableSourceTest {
 		}
 
 		@Override
-		HiveTableInputFormat getInputFormat(List<HiveTablePartition> allHivePartitions, boolean useMapRedReader) {
+		HiveTableInputFormat getInputFormat(List<HiveTablePartition> allHivePartitions, boolean useMapRedReader,
+				boolean useLineorderReader) {
 			return new TestVectorReaderInputFormat(
 					jobConf, catalogTable, allHivePartitions, null, -1, hiveCatalog.getHiveVersion(), useMapRedReader);
 		}
@@ -484,7 +485,7 @@ public class HiveTableSourceTest {
 
 		TestVectorReaderInputFormat(JobConf jobConf, CatalogTable catalogTable, List<HiveTablePartition> partitions,
 				int[] projectedFields, long limit, String hiveVersion, boolean useMapRedReader) {
-			super(jobConf, catalogTable, partitions, projectedFields, limit, hiveVersion, useMapRedReader);
+			super(jobConf, catalogTable, partitions, projectedFields, limit, hiveVersion, useMapRedReader, false);
 		}
 
 		@Override

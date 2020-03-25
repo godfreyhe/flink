@@ -24,6 +24,7 @@ import org.apache.flink.api.common.io.statistics.BaseStatistics;
 import org.apache.flink.api.java.hadoop.common.HadoopInputFormatCommonBase;
 import org.apache.flink.connectors.hive.FlinkHiveException;
 import org.apache.flink.connectors.hive.HiveTablePartition;
+import org.apache.flink.connectors.hive.ssb.LineorderReader;
 import org.apache.flink.core.io.InputSplitAssigner;
 import org.apache.flink.table.catalog.CatalogTable;
 import org.apache.flink.table.catalog.hive.client.HiveShimLoader;
@@ -84,6 +85,8 @@ public class HiveTableInputFormat extends HadoopInputFormatCommonBase<BaseRow, H
 	protected transient SplitReader reader;
 
 	private boolean useMapRedReader;
+	private boolean useLineorderReader;
+	private transient BaseRow row;
 
 	public HiveTableInputFormat(
 			JobConf jobConf,
@@ -92,7 +95,8 @@ public class HiveTableInputFormat extends HadoopInputFormatCommonBase<BaseRow, H
 			int[] projectedFields,
 			long limit,
 			String hiveVersion,
-			boolean useMapRedReader) {
+			boolean useMapRedReader,
+			boolean useLineorderReader) {
 		super(jobConf.getCredentials());
 		this.partitionKeys = catalogTable.getPartitionKeys();
 		this.fieldTypes = catalogTable.getSchema().getFieldDataTypes();
@@ -105,6 +109,7 @@ public class HiveTableInputFormat extends HadoopInputFormatCommonBase<BaseRow, H
 		int rowArity = catalogTable.getSchema().getFieldCount();
 		selectedFields = projectedFields != null ? projectedFields : IntStream.range(0, rowArity).toArray();
 		this.useMapRedReader = useMapRedReader;
+		this.useLineorderReader = useLineorderReader;
 	}
 
 	@Override
@@ -113,7 +118,10 @@ public class HiveTableInputFormat extends HadoopInputFormatCommonBase<BaseRow, H
 
 	@Override
 	public void open(HiveTableInputSplit split) throws IOException {
-		if (!useMapRedReader && useOrcVectorizedRead(split.getHiveTablePartition())) {
+		if (useLineorderReader) {
+			LOG.info("use LineorderReader");
+			this.reader = new LineorderReader(split.getSplitNumber(), selectedFields);
+		} else if (!useMapRedReader && useOrcVectorizedRead(split.getHiveTablePartition())) {
 			this.reader = new HiveVectorizedOrcSplitReader(
 					hiveVersion, jobConf, fieldNames, fieldTypes, selectedFields, split);
 		} else {
@@ -187,12 +195,16 @@ public class HiveTableInputFormat extends HadoopInputFormatCommonBase<BaseRow, H
 
 	@Override
 	public BaseRow nextRecord(BaseRow reuse) throws IOException {
+		row = reuse;
 		currentReadCount++;
 		return reader.nextRecord(reuse);
 	}
 
 	@Override
 	public void close() throws IOException {
+		if (row != null) {
+			LOG.info("BaseRow class: " + row.getClass().getSimpleName());
+		}
 		if (this.reader != null) {
 			this.reader.close();
 			this.reader = null;
@@ -251,6 +263,7 @@ public class HiveTableInputFormat extends HadoopInputFormatCommonBase<BaseRow, H
 		out.writeObject(limit);
 		out.writeObject(hiveVersion);
 		out.writeBoolean(useMapRedReader);
+		out.writeBoolean(useLineorderReader);
 	}
 
 	@SuppressWarnings("unchecked")
@@ -273,5 +286,6 @@ public class HiveTableInputFormat extends HadoopInputFormatCommonBase<BaseRow, H
 		limit = (long) in.readObject();
 		hiveVersion = (String) in.readObject();
 		useMapRedReader = in.readBoolean();
+		useLineorderReader = in.readBoolean();
 	}
 }

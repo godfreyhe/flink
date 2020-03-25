@@ -45,4 +45,9 @@ public class HiveOptions {
 			key("table.exec.hive.infer-source-parallelism.max")
 					.defaultValue(1000)
 					.withDescription("Sets max infer parallelism for source operator.");
+
+	public static final ConfigOption<Boolean> TABLE_EXEC_HIVE_IN_MEMORY_LINEORDER_TABLE_ENABLED =
+			key("table.exec.hive.in-memory-lineorder-table-enabled")
+					.defaultValue(false)
+					.withDescription("Whether enabled in-memory lineorder table source.");
 }
