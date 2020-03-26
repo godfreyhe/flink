@@ -56,6 +56,8 @@ public class ResultPartitionBuilder {
 
 	private int networkBufferSize = 1;
 
+	private int recordSerializerCopyThreshold = 1;
+
 	@SuppressWarnings("OptionalUsedAsFieldOrParameterType")
 	private Optional<FunctionWithException<BufferPoolOwner, BufferPool, IOException>> bufferPoolFactory = Optional.empty();
 
@@ -99,6 +101,7 @@ public class ResultPartitionBuilder {
 		return setNetworkBuffersPerChannel(environment.getConfiguration().networkBuffersPerChannel())
 			.setFloatingNetworkBuffersPerGate(environment.getConfiguration().floatingNetworkBuffersPerGate())
 			.setNetworkBufferSize(environment.getConfiguration().networkBufferSize())
+			.setRecordSerializerCopyThreshold(environment.getConfiguration().recordSerializerCopyThreshold())
 			.setNetworkBufferPool(environment.getNetworkBufferPool());
 	}
 
@@ -119,6 +122,11 @@ public class ResultPartitionBuilder {
 
 	ResultPartitionBuilder setNetworkBufferSize(int networkBufferSize) {
 		this.networkBufferSize = networkBufferSize;
+		return this;
+	}
+
+	public ResultPartitionBuilder setRecordSerializerCopyThreshold(int recordSerializerCopyThreshold) {
+		this.recordSerializerCopyThreshold = recordSerializerCopyThreshold;
 		return this;
 	}
 
@@ -158,6 +166,7 @@ public class ResultPartitionBuilder {
 			networkBuffersPerChannel,
 			floatingNetworkBuffersPerGate,
 			networkBufferSize,
+			recordSerializerCopyThreshold,
 			releasedOnConsumption,
 			blockingShuffleCompressionEnabled,
 			compressionCodec);

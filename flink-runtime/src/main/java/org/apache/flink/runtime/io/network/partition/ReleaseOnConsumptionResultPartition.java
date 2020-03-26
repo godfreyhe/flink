@@ -48,6 +48,7 @@ public class ReleaseOnConsumptionResultPartition extends ResultPartition {
 
 	ReleaseOnConsumptionResultPartition(
 			String owningTaskName,
+			int recordSerializerCopyThreshold,
 			ResultPartitionID partitionId,
 			ResultPartitionType partitionType,
 			ResultSubpartition[] subpartitions,
@@ -57,6 +58,7 @@ public class ReleaseOnConsumptionResultPartition extends ResultPartition {
 			FunctionWithException<BufferPoolOwner, BufferPool, IOException> bufferPoolFactory) {
 		super(
 			owningTaskName,
+			recordSerializerCopyThreshold,
 			partitionId,
 			partitionType,
 			subpartitions,

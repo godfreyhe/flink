@@ -58,6 +58,8 @@ public class ResultPartitionFactory {
 
 	private final int networkBufferSize;
 
+	private final int recordSerializerCopyThreshold;
+
 	private final boolean forcePartitionReleaseOnConsumption;
 
 	private final boolean blockingShuffleCompressionEnabled;
@@ -72,6 +74,7 @@ public class ResultPartitionFactory {
 		int networkBuffersPerChannel,
 		int floatingNetworkBuffersPerGate,
 		int networkBufferSize,
+		int recordSerializerCopyThreshold,
 		boolean forcePartitionReleaseOnConsumption,
 		boolean blockingShuffleCompressionEnabled,
 		String compressionCodec) {
@@ -83,6 +86,7 @@ public class ResultPartitionFactory {
 		this.bufferPoolFactory = bufferPoolFactory;
 		this.blockingSubpartitionType = blockingSubpartitionType;
 		this.networkBufferSize = networkBufferSize;
+		this.recordSerializerCopyThreshold = recordSerializerCopyThreshold;
 		this.forcePartitionReleaseOnConsumption = forcePartitionReleaseOnConsumption;
 		this.blockingShuffleCompressionEnabled = blockingShuffleCompressionEnabled;
 		this.compressionCodec = compressionCodec;
@@ -117,6 +121,7 @@ public class ResultPartitionFactory {
 		ResultPartition partition = forcePartitionReleaseOnConsumption || !type.isBlocking()
 			? new ReleaseOnConsumptionResultPartition(
 				taskNameWithSubtaskAndId,
+				recordSerializerCopyThreshold,
 				id,
 				type,
 				subpartitions,
@@ -126,6 +131,7 @@ public class ResultPartitionFactory {
 				bufferPoolFactory)
 			: new ResultPartition(
 				taskNameWithSubtaskAndId,
+				recordSerializerCopyThreshold,
 				id,
 				type,
 				subpartitions,
