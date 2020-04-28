@@ -22,10 +22,12 @@ import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.configuration.IllegalConfigurationException;
 import org.apache.flink.configuration.ReadableConfig;
+import org.apache.flink.connectors.hive.read.HiveTableFileInputFormat;
 import org.apache.flink.connectors.hive.read.HiveTableInputFormat;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.DataStreamSource;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.streaming.api.functions.source.FileProcessingMode;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.api.config.ExecutionConfigOptions;
 import org.apache.flink.table.catalog.CatalogTable;
@@ -135,7 +137,7 @@ public class HiveTableSource implements
 
 	@Override
 	public boolean isBounded() {
-		return true;
+		return !Boolean.valueOf(catalogTable.getProperties().getOrDefault("continuous", "false"));
 	}
 
 	@Override
@@ -146,11 +148,29 @@ public class HiveTableSource implements
 		TypeInformation<BaseRow> typeInfo =
 				(TypeInformation<BaseRow>) TypeInfoDataTypeConverter.fromDataTypeToTypeInfo(getProducedDataType());
 
-		HiveTableInputFormat inputFormat = getInputFormat(
-				allHivePartitions,
-				flinkConf.get(HiveOptions.TABLE_EXEC_HIVE_FALLBACK_MAPRED_READER));
+		final HiveTableInputFormat inputFormat;
 
-		DataStreamSource<BaseRow> source = execEnv.createInput(inputFormat, typeInfo);
+		boolean processContinuously = Boolean.valueOf(catalogTable.getProperties().getOrDefault("continuous", "false"));
+		final DataStreamSource<BaseRow> source;
+		if (processContinuously && !isPartitionTable()) {
+			Preconditions.checkArgument(allHivePartitions.size() == 1);
+			long interval = Long.valueOf(catalogTable.getProperties().getOrDefault("interval", "60000"));
+
+			LOG.info("run continuous query, interval: " + interval);
+			// always use mapred reader
+			inputFormat = getInputFormat(allHivePartitions, true);
+			HiveTableFileInputFormat fileInputFormat = new HiveTableFileInputFormat(
+					inputFormat,
+					allHivePartitions.get(0));
+			String filePath = getFilePath();
+			source = execEnv.readFile(
+					fileInputFormat, filePath, FileProcessingMode.PROCESS_CONTINUOUSLY, interval, typeInfo);
+		} else {
+			inputFormat = getInputFormat(
+					allHivePartitions,
+					flinkConf.get(HiveOptions.TABLE_EXEC_HIVE_FALLBACK_MAPRED_READER));
+			source = execEnv.createInput(inputFormat, typeInfo);
+		}
 
 		int parallelism = flinkConf.get(ExecutionConfigOptions.TABLE_EXEC_RESOURCE_DEFAULT_PARALLELISM);
 		if (flinkConf.get(HiveOptions.TABLE_EXEC_HIVE_INFER_SOURCE_PARALLELISM)) {
@@ -324,6 +344,26 @@ public class HiveTableSource implements
 			throw new FlinkHiveException("Failed to collect all partitions from hive metaStore", e);
 		}
 		return allHivePartitions;
+	}
+
+	private boolean isPartitionTable() {
+		List<String> partitionColNames = catalogTable.getPartitionKeys();
+		return partitionColNames != null && partitionColNames.size() > 0;
+	}
+
+	private String getFilePath() {
+		// Please note that the following directly accesses Hive metastore, which is only a temporary workaround.
+		// Ideally, we need to go thru Catalog API to get all info we need here, which requires some major
+		// refactoring. We will postpone this until we merge Blink to Flink.
+		try (HiveMetastoreClientWrapper client = HiveMetastoreClientFactory
+				.create(new HiveConf(jobConf, HiveConf.class), hiveVersion)) {
+			String dbName = tablePath.getDatabaseName();
+			String tableName = tablePath.getObjectName();
+			Table hiveTable = client.getTable(dbName, tableName);
+			return hiveTable.getSd().getLocation();
+		} catch (TException e) {
+			throw new FlinkHiveException("Failed to collect all partitions from hive metaStore", e);
+		}
 	}
 
 	private static List<String> partitionSpecToValues(Map<String, String> spec, List<String> partitionColNames) {

@@ -32,6 +32,7 @@ import org.apache.flink.table.api.TableEnvironment;
 import org.apache.flink.table.api.TableUtils;
 import org.apache.flink.table.api.config.ExecutionConfigOptions;
 import org.apache.flink.table.api.internal.TableEnvironmentImpl;
+import org.apache.flink.table.api.java.StreamTableEnvironment;
 import org.apache.flink.table.catalog.CatalogPartitionSpec;
 import org.apache.flink.table.catalog.CatalogTable;
 import org.apache.flink.table.catalog.ObjectPath;
@@ -44,6 +45,7 @@ import org.apache.flink.table.dataformat.BaseRow;
 import org.apache.flink.table.factories.TableSourceFactory;
 import org.apache.flink.table.planner.delegation.PlannerBase;
 import org.apache.flink.table.planner.plan.nodes.exec.ExecNode;
+import org.apache.flink.table.planner.runtime.utils.TestingAppendSink;
 import org.apache.flink.table.planner.utils.TableTestUtil;
 import org.apache.flink.test.util.TestBaseUtils;
 import org.apache.flink.types.Row;
@@ -134,6 +136,60 @@ public class HiveTableSourceTest {
 		Assert.assertEquals("2,2,b,2000,2.22", rows.get(1).toString());
 		Assert.assertEquals("3,3,c,3000,3.33", rows.get(2).toString());
 		Assert.assertEquals("4,4,d,4000,4.44", rows.get(3).toString());
+	}
+
+	@Test
+	public void testContinuousRead() throws Exception {
+		final String catalogName = "hive";
+		final String dbName = "source_db";
+		final String tblName = "test";
+		hiveShell.execute("CREATE TABLE source_db.test (" +
+				" a INT," +
+				" b INT, " +
+				"c STRING," +
+				" d BIGINT," +
+				" e DOUBLE" +
+				")");
+		hiveShell.execute(
+				"ALTER TABLE source_db.test SET TBLPROPERTIES('continuous'='true')");
+		hiveShell.execute(
+				"ALTER TABLE source_db.test SET TBLPROPERTIES('interval'='10000')");
+
+		HiveTestUtils.createTextTableInserter(hiveShell, dbName, tblName)
+				.addRow(new Object[]{1, 1, "a", 1000L, 1.11})
+				.addRow(new Object[]{2, 2, "b", 2000L, 2.22})
+				.addRow(new Object[]{3, 3, "c", 3000L, 3.33})
+				.addRow(new Object[]{4, 4, "d", 4000L, 4.44})
+				.commit();
+
+		Runnable runnable = () -> {
+			while (true) {
+				try {
+					Thread.sleep(10000);
+				} catch (InterruptedException e) {
+					e.printStackTrace();
+				}
+				HiveTestUtils.createTextTableInserter(hiveShell, dbName, tblName)
+						.addRow(new Object[] { 1, 1, "a", 1000L, 1.11 })
+						.addRow(new Object[] { 2, 2, "b", 2000L, 2.22 })
+						.addRow(new Object[] { 3, 3, "c", 3000L, 3.33 })
+						.addRow(new Object[] { 4, 4, "d", 4000L, 4.44 })
+						.commit();
+			}
+
+		};
+		Thread thread = new Thread(runnable);
+		thread.setDaemon(true);
+		thread.start();
+
+		StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+		StreamTableEnvironment tEnv = HiveTestUtils.createTableEnvWithBlinkPlannerStreamMode(env);
+		tEnv.registerCatalog(catalogName, hiveCatalog);
+		Table src = tEnv.sqlQuery("select * from hive.source_db.test");
+
+		TestingAppendSink sink = new TestingAppendSink();
+		tEnv.toAppendStream(src, Row.class).addSink(sink);
+		env.execute();
 	}
 
 	@Test

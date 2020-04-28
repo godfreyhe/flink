@@ -18,8 +18,10 @@
 
 package org.apache.flink.table.catalog.hive;
 
+import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.EnvironmentSettings;
 import org.apache.flink.table.api.TableEnvironment;
+import org.apache.flink.table.api.java.StreamTableEnvironment;
 import org.apache.flink.table.catalog.CatalogTest;
 import org.apache.flink.table.catalog.exceptions.CatalogException;
 import org.apache.flink.table.catalog.hive.client.HiveShimLoader;
@@ -116,6 +118,13 @@ public class HiveTestUtils {
 		return tableEnv;
 	}
 
+	public static StreamTableEnvironment createTableEnvWithBlinkPlannerStreamMode(StreamExecutionEnvironment env) {
+		EnvironmentSettings settings = EnvironmentSettings.newInstance().useBlinkPlanner().inStreamingMode().build();
+		StreamTableEnvironment tableEnv = StreamTableEnvironment.create(env, settings);
+		tableEnv.getConfig().getConfiguration().setInteger(TABLE_EXEC_RESOURCE_DEFAULT_PARALLELISM.key(), 1);
+		return tableEnv;
+	}
+
 	// Insert into a single partition of a text table.
 	public static TextTableInserter createTextTableInserter(HiveShell hiveShell, String dbName, String tableName) {
 		return new TextTableInserter(hiveShell, dbName, tableName);
@@ -150,6 +159,7 @@ public class HiveTestUtils {
 		public void commit(String partitionSpec) {
 			try {
 				File file = File.createTempFile("table_data_", null);
+				System.out.println(file.toString());
 				try (BufferedWriter writer = new BufferedWriter(new FileWriter(file))) {
 					for (int i = 0; i < rows.size(); i++) {
 						if (i > 0) {

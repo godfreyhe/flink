@@ -157,7 +157,10 @@ final class TestingAppendSink(tz: TimeZone) extends AbstractExactlyOnceSink[Row]
     this(TimeZone.getTimeZone("UTC"))
   }
 
-  override def invoke(value: Row): Unit = localResults += TestSinkUtil.rowToString(value, tz)
+  override def invoke(value: Row): Unit = {
+    println(value)
+    localResults += TestSinkUtil.rowToString(value, tz)
+  }
 
   def getAppendResults: List[String] = getResults
 }
