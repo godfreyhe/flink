@@ -20,15 +20,14 @@ package org.apache.flink.table.planner.plan.nodes.physical.batch
 
 import org.apache.flink.api.dag.Transformation
 import org.apache.flink.runtime.operators.DamBehavior
+import org.apache.flink.table.data.RowData
 import org.apache.flink.table.planner.delegation.BatchPlanner
 import org.apache.flink.table.planner.plan.nodes.exec.{BatchExecNode, ExecNode}
 import org.apache.flink.table.planner.plan.nodes.physical.MultipleInputRel
-
 import org.apache.calcite.plan.{RelOptCluster, RelTraitSet}
 import org.apache.calcite.rel.RelNode
 
 import java.util
-
 import scala.collection.JavaConversions._
 
 class BatchExecMultipleInputNode[T](
@@ -38,7 +37,7 @@ class BatchExecMultipleInputNode[T](
     outputRel: RelNode, // the root node of the sub-tree (from root node to input nodes)
     readOrder: Array[Int])
   extends MultipleInputRel(cluster, traitSet, inputRels, outputRel)
-  with BatchExecNode[_] {
+  with BatchExecNode[RowData] {
 
   override def getDamBehavior: DamBehavior = {
     val inputNodes = inputRels.map(_.asInstanceOf[BatchExecNode[_]])
@@ -63,6 +62,6 @@ class BatchExecMultipleInputNode[T](
     throw new UnsupportedOperationException()
   }
 
-  override protected def translateToPlanInternal(planner: BatchPlanner): Transformation[_] = ???
+  override protected def translateToPlanInternal(planner: BatchPlanner): Transformation[RowData] = ???
 
 }

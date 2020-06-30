@@ -30,12 +30,13 @@ import org.apache.flink.table.planner.plan.optimize.{Optimizer, StreamCommonSubG
 import org.apache.flink.table.planner.plan.utils.{ExecNodePlanDumper, FlinkRelOptUtil}
 import org.apache.flink.table.planner.sinks.{SelectTableSinkBase, StreamSelectTableSink}
 import org.apache.flink.table.planner.utils.{DummyStreamExecutionEnvironment, ExecutorUtils, PlanUtil}
-
 import org.apache.calcite.plan.{ConventionTraitDef, RelTrait, RelTraitDef}
 import org.apache.calcite.rel.logical.LogicalTableModify
 import org.apache.calcite.sql.SqlExplainLevel
-
 import java.util
+
+import org.apache.calcite.rel.RelNode
+import org.apache.flink.table.planner.plan.nodes.process.{DAGProcessContext, StreamMultipleInputCreationProcessor}
 
 import _root_.scala.collection.JavaConversions._
 
@@ -56,6 +57,13 @@ class StreamPlanner(
   }
 
   override protected def getOptimizer: Optimizer = new StreamCommonSubGraphBasedOptimizer(this)
+
+  override private[flink] def translateToExecNodePlan(
+      optimizedRelNodes: Seq[RelNode]): util.List[ExecNode[_, _]] = {
+    val execNodePlan = super.translateToExecNodePlan(optimizedRelNodes)
+    val context = new DAGProcessContext(this)
+    new StreamMultipleInputCreationProcessor().process(execNodePlan, context)
+  }
 
   override protected def translateToPlan(
       execNodes: util.List[ExecNode[_, _]]): util.List[Transformation[_]] = {
