@@ -21,6 +21,8 @@ package org.apache.flink.table.planner.plan.nodes.process;
 import org.apache.flink.api.common.typeinfo.BasicTypeInfo;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.table.api.TableConfig;
+import org.apache.flink.table.api.config.ExecutionConfigOptions;
+import org.apache.flink.table.api.config.OptimizerConfigOptions;
 import org.apache.flink.table.planner.utils.BatchTableTestUtil;
 import org.apache.flink.table.planner.utils.TableTestBase;
 
@@ -47,12 +49,17 @@ public class BatchMultipleInputCreationProcessorTest extends TableTestBase {
 		util.addTableSource(
 			"z",
 			new TypeInformation[]{BasicTypeInfo.INT_TYPE_INFO, BasicTypeInfo.LONG_TYPE_INFO, BasicTypeInfo.STRING_TYPE_INFO},
-			new String[]{"a", "b", "c"});
+			new String[]{"g", "h", "i"});
 	}
 
 	@Test
 	public void testStarSchemaJoin() {
-		String sqlQuery = "SELECT * FROM (SELECT a, SUM(b) FROM x GROUP BY a) T1, (SELECT a, AVG(b) FROM x GROUP BY a) T2, (SELECT a, COUNT(b) FROM x GROUP BY a) T3 WHERE T1.a = T2.a AND T1.a = T3.a";
+		util.tableEnv().getConfig().getConfiguration().setBoolean(
+			OptimizerConfigOptions.TABLE_OPTIMIZER_REUSE_SUB_PLAN_ENABLED, true);
+		util.tableEnv().getConfig().getConfiguration().setString(
+			ExecutionConfigOptions.TABLE_EXEC_DISABLED_OPERATORS, "NestedLoopJoin");
+
+		String sqlQuery = "SELECT * FROM (SELECT * FROM x, y WHERE x.a = y.d) T1, (SELECT * FROM x, z WHERE x.a = z.g) T2 WHERE T1.a = T2.a AND T1.b > T2.b";
 		util.verifyPlan(sqlQuery);
 	}
 }

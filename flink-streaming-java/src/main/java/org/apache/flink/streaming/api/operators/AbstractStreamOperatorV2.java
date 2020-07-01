@@ -190,7 +190,7 @@ public abstract class AbstractStreamOperatorV2<OUT> implements StreamOperator<OU
 	}
 
 	@Override
-	public final void initializeState(StreamTaskStateInitializer streamTaskStateManager) throws Exception {
+	public void initializeState(StreamTaskStateInitializer streamTaskStateManager) throws Exception {
 		final TypeSerializer<?> keySerializer = config.getStateKeySerializer(getUserCodeClassloader());
 
 		final StreamOperatorStateContext context =

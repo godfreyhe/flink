@@ -18,8 +18,6 @@
 
 package org.apache.flink.table.planner.plan.nodes.process;
 
-import org.apache.calcite.plan.RelOptCluster;
-import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.rel.RelNode;
 import org.apache.flink.table.planner.plan.nodes.exec.ExecNode;
 import org.apache.flink.table.planner.plan.nodes.physical.stream.StreamExecExchange;
@@ -48,21 +46,22 @@ public class StreamMultipleInputCreationProcessor extends AbstractMultipleInputC
 		StreamExecTemporalJoin.class);
 
 	@Override
-	protected boolean canBeMerged(ExecNode execNode) {
-		return BANNED_NODES.stream().noneMatch(clazz -> clazz.isInstance(execNode));
+	protected boolean canBeMerged(ExecNodeInfo nodeInfo) {
+		return BANNED_NODES.stream().noneMatch(clazz -> clazz.isInstance(nodeInfo.execNode));
 	}
 
 	@Override
-	protected boolean canBeRoot(ExecNode execNode) {
-		return ROOT_NODES.stream().anyMatch(clazz -> clazz.isInstance(execNode));
+	protected boolean canBeRoot(ExecNodeInfo nodeInfo) {
+		return ROOT_NODES.stream().anyMatch(clazz -> clazz.isInstance(nodeInfo.execNode));
 	}
 
 	@Override
-	protected ExecNode<?, ?> buildMultipleInputNode(
-			RelOptCluster cluster,
-			RelTraitSet traitSet,
-			RelNode[] inputs,
-			RelNode output) {
-		return new StreamExecMultipleInputNode(cluster, traitSet, inputs, output);
+	protected ExecNode<?, ?> buildMultipleInputNode(ExecNode<?, ?> execNode, List<ExecNode> inputs) {
+		RelNode rel = (RelNode) execNode;
+		return new StreamExecMultipleInputNode(
+			rel.getCluster(),
+			rel.getTraitSet(),
+			inputs.toArray(new RelNode[0]),
+			rel);
 	}
 }

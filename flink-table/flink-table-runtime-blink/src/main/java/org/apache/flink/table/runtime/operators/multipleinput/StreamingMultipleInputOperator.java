@@ -106,6 +106,15 @@ public class StreamingMultipleInputOperator
 		}
 	}
 
+	@Override
+	public void initializeState(StreamTaskStateInitializer streamTaskStateManager) throws Exception {
+		super.initializeState(streamTaskStateManager);
+		for (StreamOperatorWrapper<?> wrapper : getAllOperators(true)) {
+			StreamOperator<?> operator = wrapper.getStreamOperator();
+			operator.initializeState(streamTaskStateManager);
+		}
+	}
+
 	/**
 	 * Open all operators in the chain from <b>tail to head</b>,
 	 * contrary to {@link StreamOperator#close()} which happens <b>head to tail</b>

@@ -100,7 +100,9 @@ class StreamExecRemoveExchangeRule3
     }
 
     util.Arrays.equals(join.getJoinInfo.leftKeys.toIntArray,
-      exchange.getDistribution.getKeys.map(_.toInt).toArray)
+      exchange.getDistribution.getKeys.map(_.toInt).toArray) ||
+      util.Arrays.equals(join.getJoinInfo.rightKeys.toIntArray,
+        exchange.getDistribution.getKeys.map(_.toInt).toArray)
   }
 
   override def onMatch(call: RelOptRuleCall): Unit = {
@@ -113,9 +115,72 @@ class StreamExecRemoveExchangeRule3
   }
 }
 
+class StreamExecRemoveExchangeRule4
+  extends RelOptRule(
+    operand(classOf[StreamExecJoin],
+      operand(classOf[StreamExecExchange],
+        operand(classOf[StreamExecJoin], any())),
+      operand(classOf[StreamPhysicalRel], any())),
+    "StreamExecRemoveExchangeRule4") {
+
+  override def matches(call: RelOptRuleCall): Boolean = {
+    val exchange: StreamExecExchange = call.rel(1)
+    val subJoin: StreamExecJoin = call.rel(2)
+
+    if (exchange.getDistribution.getType != RelDistribution.Type.HASH_DISTRIBUTED) {
+      return false
+    }
+
+    util.Arrays.equals(subJoin.getJoinInfo.leftKeys.toIntArray,
+      exchange.getDistribution.getKeys.map(_.toInt).toArray) ||
+      util.Arrays.equals(subJoin.getJoinInfo.rightKeys.toIntArray,
+        exchange.getDistribution.getKeys.map(_.toInt).toArray)
+  }
+
+  override def onMatch(call: RelOptRuleCall): Unit = {
+    val join: StreamExecJoin = call.rel(0)
+    val subJoin: StreamExecJoin = call.rel(2)
+    val newJoin = join.copy(join.getTraitSet, util.Arrays.asList(subJoin, join.getRight))
+
+    call.transformTo(newJoin)
+  }
+}
+
+class StreamExecRemoveExchangeRule5
+  extends RelOptRule(
+    operand(classOf[StreamExecJoin],
+      operand(classOf[StreamPhysicalRel], any()),
+      operand(classOf[StreamExecExchange],
+        operand(classOf[StreamExecJoin], any()))),
+    "StreamExecRemoveExchangeRule5") {
+
+  override def matches(call: RelOptRuleCall): Boolean = {
+    val exchange: StreamExecExchange = call.rel(2)
+    val subJoin: StreamExecJoin = call.rel(3)
+
+    if (exchange.getDistribution.getType != RelDistribution.Type.HASH_DISTRIBUTED) {
+      return false
+    }
+
+    util.Arrays.equals(subJoin.getJoinInfo.leftKeys.toIntArray,
+      exchange.getDistribution.getKeys.map(_.toInt).toArray) ||
+      util.Arrays.equals(subJoin.getJoinInfo.rightKeys.toIntArray,
+        exchange.getDistribution.getKeys.map(_.toInt).toArray)
+  }
+
+  override def onMatch(call: RelOptRuleCall): Unit = {
+    val join: StreamExecJoin = call.rel(0)
+    val subJoin: StreamExecJoin = call.rel(3)
+    val newJoin = join.copy(join.getTraitSet, util.Arrays.asList(join.getLeft, subJoin))
+
+    call.transformTo(newJoin)
+  }
+}
+
 object StreamExecRemoveExchangeRule {
   val INSTANCE1 = new StreamExecRemoveExchangeRule1
   val INSTANCE2 = new StreamExecRemoveExchangeRule2
   val INSTANCE3 = new StreamExecRemoveExchangeRule3
+  val INSTANCE4 = new StreamExecRemoveExchangeRule4
+  val INSTANCE5 = new StreamExecRemoveExchangeRule5
 }
-

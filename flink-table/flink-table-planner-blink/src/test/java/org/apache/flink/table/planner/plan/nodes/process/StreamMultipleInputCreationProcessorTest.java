@@ -47,12 +47,17 @@ public class StreamMultipleInputCreationProcessorTest extends TableTestBase {
 		util.addTableSource(
 			"z",
 			new TypeInformation[]{BasicTypeInfo.INT_TYPE_INFO, BasicTypeInfo.LONG_TYPE_INFO, BasicTypeInfo.STRING_TYPE_INFO},
-			new String[]{"a", "b", "c"});
+			new String[]{"g", "h", "i"});
+		util.addTableSource(
+			"zz",
+			new TypeInformation[]{BasicTypeInfo.INT_TYPE_INFO, BasicTypeInfo.LONG_TYPE_INFO, BasicTypeInfo.STRING_TYPE_INFO},
+			new String[]{"g", "h", "i"});
 	}
 
 	@Test
 	public void testStarSchemaJoin() {
-		String sqlQuery = "SELECT * FROM (SELECT x.a, x.b FROM x, y WHERE x.a = y.d UNION ALL (SELECT x.a, x.b FROM x, z WHERE x.a = z.a))";
+		String sqlQuery = "WITH T AS (SELECT * FROM x, y WHERE x.a = y.d) " +
+			"SELECT * FROM (SELECT * FROM T, z WHERE T.a = z.g) T1, (SELECT * FROM T, zz WHERE T.a = zz.g) T2 WHERE T1.a = T2.a";
 		util.verifyPlan(sqlQuery);
 	}
 }

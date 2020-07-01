@@ -434,7 +434,9 @@ object FlinkStreamRuleSets {
     IncrementalAggregateRule.INSTANCE,
     StreamExecRemoveExchangeRule.INSTANCE1,
     StreamExecRemoveExchangeRule.INSTANCE2,
-    StreamExecRemoveExchangeRule.INSTANCE3
+    StreamExecRemoveExchangeRule.INSTANCE3,
+    StreamExecRemoveExchangeRule.INSTANCE4,
+    StreamExecRemoveExchangeRule.INSTANCE5
   )
 
 }

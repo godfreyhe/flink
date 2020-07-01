@@ -18,9 +18,6 @@
 
 package org.apache.flink.table.planner.plan.nodes.process;
 
-import org.apache.calcite.plan.RelOptCluster;
-import org.apache.calcite.plan.RelTraitSet;
-import org.apache.calcite.rel.RelNode;
 import org.apache.flink.table.planner.plan.nodes.exec.ExecNode;
 import org.apache.flink.table.planner.plan.nodes.exec.ExecNodeVisitorImpl;
 
@@ -46,71 +43,77 @@ public abstract class AbstractMultipleInputCreationProcessor implements DAGProce
 		return createMultipleInputNode(order);
 	}
 
-	abstract protected boolean canBeMerged(ExecNode<?, ?> execNode);
+	abstract protected boolean canBeMerged(ExecNodeInfo nodeInfo);
 
-	abstract protected boolean canBeRoot(ExecNode<?, ?> execNode);
+	abstract protected boolean canBeRoot(ExecNodeInfo nodeInfo);
 
-	abstract protected ExecNode<?, ?> buildMultipleInputNode(
-		RelOptCluster cluster, RelTraitSet traitSet, RelNode[] inputs, RelNode output);
+	abstract protected ExecNode<?, ?> buildMultipleInputNode(ExecNode<?, ?> execNode, List<ExecNode> inputs);
 
 	private void mark(List<ExecNodeInfo> order) {
-		for (ExecNodeInfo node : order) {
-			Set<MultipleInputNodeInfo> outputMinis = node.outputs.stream()
+		for (ExecNodeInfo nodeInfo : order) {
+			Set<MultipleInputNodeInfo> outputMinis = nodeInfo.outputs.stream()
 				.map(o -> o.mini)
 				.collect(Collectors.toSet());
 			if (outputMinis.size() == 1 && outputMinis.iterator().next() != null) {
 				MultipleInputNodeInfo mini = outputMinis.iterator().next();
-				if (canBeMerged(node.execNode)) {
+				if (canBeMerged(nodeInfo)) {
 					// this node can be merged
 					mini.size++;
-					node.mini = mini;
+					nodeInfo.mini = mini;
 				}
 			} else {
 				// there are different multiple input nodes in the output or there is no multiple input node,
 				// so this node cannot be merged into existing multiple input exec nodes
-				if (canBeRoot(node.execNode)) {
+				if (canBeRoot(nodeInfo)) {
 					// we can start building a new multiple input exec node from this node
-					node.mini = new MultipleInputNodeInfo(node.execNode);
+					nodeInfo.mini = new MultipleInputNodeInfo(nodeInfo.execNode);
 				}
+			}
+		}
+
+		for (ExecNodeInfo nodeInfo : order) {
+			if (nodeInfo.mini != null && nodeInfo.mini.size == 1) {
+				// this multiple input exec node only has 1 member node,
+				// so it does not need to be changed into a multiple input exec node
+				nodeInfo.mini = null;
 			}
 		}
 	}
 
 	private List<ExecNode<?, ?>> createMultipleInputNode(List<ExecNodeInfo> order) {
-		List<ExecNode<?, ?>> res = new ArrayList<>();
+		List<ExecNode<?, ?>> sinks = new ArrayList<>();
 
 		for (int i = order.size() - 1; i >= 0; i--) {
-			ExecNodeInfo node = order.get(i);
-
-			if (node.mini != null && node.mini.size > 1 && node.mini.root == node.execNode) {
-				RelNode rel = (RelNode) node.execNode;
-				ExecNode<?, ?> multipleInputNode = buildMultipleInputNode(
-					rel.getCluster(), rel.getTraitSet(), node.mini.inputs.toArray(new RelNode[0]), rel);
-				if (node.outputs.isEmpty()) {
-					res.add(multipleInputNode);
-				} else {
-					for (ExecNodeInfo output : node.outputs) {
-						if (output.mini != null) {
-							output.mini.inputs.add(multipleInputNode);
-						} else {
-							replaceInputNode(output.execNode, node.execNode, multipleInputNode);
-						}
-					}
-				}
-			} else if (node.mini == null || node.mini.size == 1) {
-				if (node.outputs.isEmpty()) {
-					res.add(node.execNode);
-				} else {
-					for (ExecNodeInfo output : node.outputs) {
-						if (output.mini	!= null) {
-							output.mini.inputs.add(node.execNode);
-						}
-					}
-				}
+			ExecNodeInfo nodeInfo = order.get(i);
+			if (nodeInfo.mini != null && nodeInfo.mini.root == nodeInfo.execNode) {
+				// this is the root of a multiple input exec node, so build it
+				ExecNode<?, ?> multipleInputNode = buildMultipleInputNode(nodeInfo.execNode, nodeInfo.mini.inputs);
+				reconnectToOutputs(nodeInfo, multipleInputNode, sinks, true);
+			} else if (nodeInfo.mini == null) {
+				// this is not a member of a multiple input exec node
+				reconnectToOutputs(nodeInfo, nodeInfo.execNode, sinks, false);
 			}
 		}
 
-		return res;
+		return sinks;
+	}
+
+	private void reconnectToOutputs(
+			ExecNodeInfo nodeInfo,
+			ExecNode<?, ?> input,
+			List<ExecNode<?, ?>> sinks,
+			boolean needToReplaceInput) {
+		if (nodeInfo.outputs.isEmpty()) {
+			sinks.add(input);
+		} else {
+			for (ExecNodeInfo outputInfo : nodeInfo.outputs) {
+				if (outputInfo.mini != null) {
+					outputInfo.mini.inputs.add(input);
+				} else if (needToReplaceInput) {
+					replaceInputNode(outputInfo.execNode, nodeInfo.execNode, input);
+				}
+			}
+		}
 	}
 
 	private void replaceInputNode(ExecNode<?, ?> output, ExecNode<?, ?> inputBefore, ExecNode inputAfter) {
@@ -141,9 +144,9 @@ public abstract class AbstractMultipleInputCreationProcessor implements DAGProce
 			}
 			visited.add(node);
 
-			ExecNodeInfo info = execNodeInfos.computeIfAbsent(node, ignore -> new ExecNodeInfo(node));
+			ExecNodeInfo nodeInfo = execNodeInfos.computeIfAbsent(node, ignore -> new ExecNodeInfo(node));
 			node.getInputNodes().forEach(
-				n -> execNodeInfos.computeIfAbsent(n, ignore -> new ExecNodeInfo(n)).outputs.add(info));
+				n -> execNodeInfos.computeIfAbsent(n, ignore -> new ExecNodeInfo(n)).outputs.add(nodeInfo));
 			super.visit(node);
 		}
 
@@ -176,13 +179,13 @@ public abstract class AbstractMultipleInputCreationProcessor implements DAGProce
 	/**
 	 * A helper class recording some extra information of a {@link ExecNode}.
 	 */
-	private static class ExecNodeInfo {
+	protected static class ExecNodeInfo {
 
-		private ExecNode<?, ?> execNode;
-		private List<ExecNodeInfo> outputs;
-		private MultipleInputNodeInfo mini;
+		protected ExecNode<?, ?> execNode;
+		protected List<ExecNodeInfo> outputs;
+		protected MultipleInputNodeInfo mini;
 
-		private ExecNodeInfo(ExecNode<?, ?> execNode) {
+		protected ExecNodeInfo(ExecNode<?, ?> execNode) {
 			this.execNode = execNode;
 			this.outputs = new ArrayList<>();
 			this.mini = null;
@@ -192,13 +195,13 @@ public abstract class AbstractMultipleInputCreationProcessor implements DAGProce
 	/**
 	 * A helper class recording the information needed for creating a multiple input exec node.
 	 */
-	private static class MultipleInputNodeInfo {
+	protected static class MultipleInputNodeInfo {
 
-		private ExecNode<?, ?> root;
-		private int size;
-		private List<ExecNode> inputs;
+		protected ExecNode<?, ?> root;
+		protected int size;
+		protected List<ExecNode> inputs;
 
-		private MultipleInputNodeInfo(ExecNode<?, ?> root) {
+		protected MultipleInputNodeInfo(ExecNode<?, ?> root) {
 			this.root = root;
 			this.size = 1;
 			this.inputs = new ArrayList<>();

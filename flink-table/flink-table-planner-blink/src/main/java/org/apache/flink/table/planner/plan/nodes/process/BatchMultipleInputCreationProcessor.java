@@ -18,8 +18,6 @@
 
 package org.apache.flink.table.planner.plan.nodes.process;
 
-import org.apache.calcite.plan.RelOptCluster;
-import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.rel.RelNode;
 import org.apache.flink.table.planner.plan.nodes.exec.ExecNode;
 import org.apache.flink.table.planner.plan.nodes.physical.batch.BatchExecExchange;
@@ -30,9 +28,16 @@ import org.apache.flink.table.planner.plan.nodes.physical.batch.BatchExecNestedL
 import org.apache.flink.table.planner.plan.nodes.physical.batch.BatchExecSortMergeJoin;
 import org.apache.flink.table.planner.plan.nodes.physical.batch.BatchExecTableSourceScan;
 import org.apache.flink.table.planner.plan.nodes.physical.batch.BatchExecUnion;
+import org.apache.flink.util.Preconditions;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 public class BatchMultipleInputCreationProcessor extends AbstractMultipleInputCreationProcessor {
 
@@ -48,22 +53,119 @@ public class BatchMultipleInputCreationProcessor extends AbstractMultipleInputCr
 		BatchExecSortMergeJoin.class);
 
 	@Override
-	protected boolean canBeMerged(ExecNode<?, ?> execNode) {
-		return BANNED_NODES.stream().noneMatch(clazz -> clazz.isInstance(execNode));
+	protected boolean canBeMerged(ExecNodeInfo nodeInfo) {
+		if (BANNED_NODES.stream().anyMatch(clazz -> clazz.isInstance(nodeInfo.execNode))) {
+			return false;
+		}
+
+		for (ExecNodeInfo outputInfo : nodeInfo.outputs) {
+			boolean isProbe = false;
+			if (outputInfo.execNode instanceof BatchExecHashJoin) {
+				BatchExecHashJoin hashJoin = (BatchExecHashJoin) outputInfo.execNode;
+				isProbe = (hashJoin.leftIsBuild() && hashJoin.getInputNodes().get(1) == nodeInfo.execNode) ||
+					(!hashJoin.leftIsBuild() && hashJoin.getInputNodes().get(0) == nodeInfo.execNode);
+			} else if (outputInfo.execNode instanceof BatchExecNestedLoopJoin) {
+				BatchExecNestedLoopJoin nestedLoopJoin = (BatchExecNestedLoopJoin) outputInfo.execNode;
+				isProbe = (nestedLoopJoin.leftIsBuild() && nestedLoopJoin.getInputNodes().get(1) == nodeInfo.execNode) ||
+					(!nestedLoopJoin.leftIsBuild() && nestedLoopJoin.getInputNodes().get(0) == nodeInfo.execNode);
+			}
+			if (isProbe && hasSamePredecessor(
+				outputInfo.execNode.getInputNodes().get(0), outputInfo.execNode.getInputNodes().get(1))) {
+				return false;
+			}
+		}
+
+		return true;
+	}
+
+	private boolean hasSamePredecessor(ExecNode<?, ?> a, ExecNode<?, ?> b) {
+		// TODO optimize this
+		Set<ExecNode> sa = new HashSet<>();
+		dfs(a, sa);
+		Set<ExecNode> sb = new HashSet<>();
+		dfs(b, sb);
+
+		for (ExecNode n : sa) {
+			if (sb.contains(n)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private void dfs(ExecNode<?, ?> node, Set<ExecNode> visited) {
+		if (visited.contains(node)) {
+			return;
+		}
+
+		visited.add(node);
+		node.getInputNodes().forEach(n -> dfs(n, visited));
 	}
 
 	@Override
-	protected boolean canBeRoot(ExecNode<?, ?> execNode) {
-		return ROOT_NODES.stream().anyMatch(clazz -> clazz.isInstance(execNode));
+	protected boolean canBeRoot(ExecNodeInfo nodeInfo) {
+		return ROOT_NODES.stream().anyMatch(clazz -> clazz.isInstance(nodeInfo.execNode));
 	}
 
 	@Override
-	protected ExecNode<?, ?> buildMultipleInputNode(
-			RelOptCluster cluster,
-			RelTraitSet traitSet,
-			RelNode[] inputs,
-			RelNode output) {
-		int[] readOrder = new int[inputs.length];
-		return new BatchExecMultipleInputNode(cluster, traitSet, inputs, output, readOrder);
+	protected ExecNode<?, ?> buildMultipleInputNode(ExecNode<?, ?> execNode, List<ExecNode> inputs) {
+		RelNode rel = (RelNode) execNode;
+		int[] readOrder = calculateReadOrder(execNode, inputs);
+		return new BatchExecMultipleInputNode(
+			rel.getCluster(),
+			rel.getTraitSet(),
+			inputs.toArray(new RelNode[0]),
+			rel,
+			readOrder);
+	}
+
+	private int[] calculateReadOrder(ExecNode<?, ?> execNode, List<ExecNode> inputs) {
+		Set<ExecNode> inputSets = new HashSet<>(inputs);
+		Map<ExecNode, String> orderStrings = new HashMap<>();
+
+		dfs(execNode, "", inputSets, orderStrings);
+		List<String> orders = new ArrayList<>(orderStrings.values());
+		Collections.sort(orders);
+		Map<String, Integer> string2Int = new HashMap<>();
+		for (int i = 0; i < orders.size(); i++) {
+			string2Int.put(orders.get(i), i);
+		}
+
+		int[] readOrder = new int[inputs.size()];
+		for (int i = 0; i < inputs.size(); i++) {
+			readOrder[i] = string2Int.get(orderStrings.get(inputs.get(i)));
+		}
+		return readOrder;
+	}
+
+	private void dfs(ExecNode<?, ?> execNode, String s, Set<ExecNode> inputSets, Map<ExecNode, String> orderStrings) {
+		if (orderStrings.containsKey(execNode)) {
+			String order = orderStrings.get(execNode);
+			Preconditions.checkState(
+				order.equals(s),
+				"The same exec node has two different orders. This is a bug.");
+			return;
+		}
+
+		orderStrings.put(execNode, s);
+		if (inputSets.contains(execNode)) {
+			return;
+		}
+
+		if (execNode instanceof BatchExecHashJoin) {
+			BatchExecHashJoin hashJoin = (BatchExecHashJoin) execNode;
+			int buildIdx = hashJoin.leftIsBuild() ? 0 : 1;
+			int probeIdx = 1 - buildIdx;
+			dfs(hashJoin.getInputNodes().get(buildIdx), s + "b", inputSets, orderStrings);
+			dfs(hashJoin.getInputNodes().get(probeIdx), s + "p", inputSets, orderStrings);
+		} else if (execNode instanceof BatchExecNestedLoopJoin) {
+			BatchExecNestedLoopJoin nestedLoopJoin = (BatchExecNestedLoopJoin) execNode;
+			int buildIdx = nestedLoopJoin.leftIsBuild() ? 0 : 1;
+			int probeIdx = 1 - buildIdx;
+			dfs(nestedLoopJoin.getInputNodes().get(buildIdx), s + "b", inputSets, orderStrings);
+			dfs(nestedLoopJoin.getInputNodes().get(probeIdx), s + "p", inputSets, orderStrings);
+		} else {
+			execNode.getInputNodes().forEach(n -> dfs(n, s + "b", inputSets, orderStrings));
+		}
 	}
 }
