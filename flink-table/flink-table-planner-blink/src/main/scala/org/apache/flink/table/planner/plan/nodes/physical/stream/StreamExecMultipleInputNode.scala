@@ -19,9 +19,14 @@
 package org.apache.flink.table.planner.plan.nodes.physical.stream
 
 import org.apache.flink.api.dag.Transformation
+import org.apache.flink.streaming.api.transformations.MultipleInputTransformation
+import org.apache.flink.table.data.RowData
+import org.apache.flink.table.planner.calcite.FlinkTypeFactory
 import org.apache.flink.table.planner.delegation.StreamPlanner
 import org.apache.flink.table.planner.plan.nodes.exec.{ExecNode, StreamExecNode}
 import org.apache.flink.table.planner.plan.nodes.physical.MultipleInputRel
+import org.apache.flink.table.runtime.operators.multipleinput.StreamingMultipleInputOperatorFactory
+import org.apache.flink.table.runtime.typeutils.RowDataTypeInfo
 
 import org.apache.calcite.plan.{RelOptCluster, RelTraitSet}
 import org.apache.calcite.rel.RelNode
@@ -30,13 +35,13 @@ import java.util
 
 import scala.collection.JavaConversions._
 
-class StreamExecMultipleInputNode[T](
+class StreamExecMultipleInputNode(
     cluster: RelOptCluster,
     traitSet: RelTraitSet, // TODO trait ?
     inputRels: Array[RelNode],
     outputRel: RelNode) // the root node of the sub-tree (from root node to input nodes)
   extends MultipleInputRel(cluster, traitSet, inputRels, outputRel)
-  with StreamExecNode[T] {
+  with StreamExecNode[RowData] {
 
   //~ ExecNode methods -----------------------------------------------------------
 
@@ -50,6 +55,35 @@ class StreamExecMultipleInputNode[T](
     throw new UnsupportedOperationException()
   }
 
-  override protected def translateToPlanInternal(planner: StreamPlanner): Transformation[T] = ???
+  override protected def translateToPlanInternal(
+      planner: StreamPlanner): Transformation[RowData] = {
+    // TODO handle union node
+    val inputTransforms = getInputNodes.map(n => n.translateToPlan(planner))
+    val tailTransform = outputRel.asInstanceOf[StreamExecNode[_]].translateToPlan(planner)
+
+    val outputType = RowDataTypeInfo.of(FlinkTypeFactory.toLogicalRowType(getRowType))
+
+    val multipleTransform = new MultipleInputTransformation[RowData](
+      getRelDetailedDescription,
+      new StreamingMultipleInputOperatorFactory(
+        inputTransforms.size,
+        inputTransforms,
+        tailTransform),
+      outputType,
+      tailTransform.getParallelism // TODO
+    )
+
+    // add inputs
+    inputTransforms.foreach(input => multipleTransform.addInput(input))
+
+    if (tailTransform.getMaxParallelism > 0) {
+      multipleTransform.setMaxParallelism(tailTransform.getMaxParallelism)
+    }
+
+    // set resource
+    // TODO
+
+    multipleTransform
+  }
 
 }

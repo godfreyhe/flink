@@ -24,13 +24,15 @@ import org.apache.flink.table.data.RowData
 import org.apache.flink.table.planner.delegation.BatchPlanner
 import org.apache.flink.table.planner.plan.nodes.exec.{BatchExecNode, ExecNode}
 import org.apache.flink.table.planner.plan.nodes.physical.MultipleInputRel
+
 import org.apache.calcite.plan.{RelOptCluster, RelTraitSet}
 import org.apache.calcite.rel.RelNode
 
 import java.util
+
 import scala.collection.JavaConversions._
 
-class BatchExecMultipleInputNode[T](
+class BatchExecMultipleInputNode(
     cluster: RelOptCluster,
     traitSet: RelTraitSet,
     inputRels: Array[RelNode],
@@ -62,6 +64,8 @@ class BatchExecMultipleInputNode[T](
     throw new UnsupportedOperationException()
   }
 
-  override protected def translateToPlanInternal(planner: BatchPlanner): Transformation[RowData] = ???
+  override protected def translateToPlanInternal(planner: BatchPlanner): Transformation[RowData] = {
+    ???
+  }
 
 }

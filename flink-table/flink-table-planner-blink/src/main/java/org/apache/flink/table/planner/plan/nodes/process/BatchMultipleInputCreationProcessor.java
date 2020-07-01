@@ -64,6 +64,6 @@ public class BatchMultipleInputCreationProcessor extends AbstractMultipleInputCr
 			RelNode[] inputs,
 			RelNode output) {
 		int[] readOrder = new int[inputs.length];
-		return new BatchExecMultipleInputNode<>(cluster, traitSet, inputs, output, readOrder);
+		return new BatchExecMultipleInputNode(cluster, traitSet, inputs, output, readOrder);
 	}
 }
