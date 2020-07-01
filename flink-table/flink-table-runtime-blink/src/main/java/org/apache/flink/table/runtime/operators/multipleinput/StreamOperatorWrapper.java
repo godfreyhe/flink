@@ -19,6 +19,7 @@
 package org.apache.flink.table.runtime.operators.multipleinput;
 
 import org.apache.flink.annotation.Internal;
+import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.streaming.api.operators.BoundedMultiInput;
 import org.apache.flink.streaming.api.operators.BoundedOneInput;
 import org.apache.flink.streaming.api.operators.MailboxExecutor;
@@ -58,7 +59,7 @@ public class StreamOperatorWrapper<OP extends StreamOperator<RowData>> implement
 	public final StreamOperatorFactory<RowData> factory;
 	private final String name;
 
-	private List<StreamOperatorWrapper<?>> previous;
+	private List<Tuple2<StreamOperatorWrapper<?>, Integer>> previous;
 
 	private List<StreamOperatorWrapper<?>> next;
 
@@ -114,12 +115,20 @@ public class StreamOperatorWrapper<OP extends StreamOperator<RowData>> implement
 		return checkNotNull(wrapped);
 	}
 
-	void addPrevious(StreamOperatorWrapper<?> previous) {
-		this.previous.add(previous);
+	void addPrevious(StreamOperatorWrapper<?> previous, int inputIndex) {
+		this.previous.add(new Tuple2<>(previous, inputIndex));
 	}
 
 	void addNext(StreamOperatorWrapper<?> next) {
 		this.next.add(next);
+	}
+
+	public List<Tuple2<StreamOperatorWrapper<?>, Integer>> getPrevious() {
+		return previous;
+	}
+
+	public List<StreamOperatorWrapper<?>> getNext() {
+		return next;
 	}
 
 	private void close(boolean invokingEndInput) throws Exception {
@@ -158,7 +167,7 @@ public class StreamOperatorWrapper<OP extends StreamOperator<RowData>> implement
 			this.reverse = reverse;
 			this.queue = new LinkedList<>();
 			this.visited = Collections.newSetFromMap(new IdentityHashMap<>());
-			enqueue(first);
+			enqueue1(first);
 		}
 
 		@Override
@@ -171,9 +180,9 @@ public class StreamOperatorWrapper<OP extends StreamOperator<RowData>> implement
 			if (hasNext()) {
 				StreamOperatorWrapper<?> next = queue.poll();
 				if (reverse) {
-					enqueue(next.previous);
+					enqueue2(next.previous);
 				} else {
-					enqueue(next.next);
+					enqueue1(next.next);
 				}
 				return next;
 			}
@@ -181,11 +190,20 @@ public class StreamOperatorWrapper<OP extends StreamOperator<RowData>> implement
 			throw new NoSuchElementException();
 		}
 
-		private void enqueue(List<StreamOperatorWrapper<?>> wrappers) {
+		private void enqueue1(List<StreamOperatorWrapper<?>> wrappers) {
 			for (StreamOperatorWrapper<?> wrapper : wrappers) {
 				if (!visited.contains(wrapper)) {
 					visited.add(wrapper);
 					queue.add(wrapper);
+				}
+			}
+		}
+
+		private void enqueue2(List<Tuple2<StreamOperatorWrapper<?>, Integer>> wrappers) {
+			for (Tuple2<StreamOperatorWrapper<?>, Integer> wrapper : wrappers) {
+				if (!visited.contains(wrapper.f0)) {
+					visited.add(wrapper.f0);
+					queue.add(wrapper.f0);
 				}
 			}
 		}

@@ -63,7 +63,7 @@ public class TransformationConverter {
 			if (isMultipleOperatorInput(input)) {
 				headOperatorWrappers.add(wrapper);
 			} else {
-				wrapper.addPrevious(visit(input, headOperatorWrappers, wrapper));
+				wrapper.addPrevious(visit(input, headOperatorWrappers, wrapper), 1);
 			}
 			return wrapper;
 		} else if (transform instanceof TwoInputTransformation) {
@@ -80,14 +80,14 @@ public class TransformationConverter {
 			if (isMultipleOperatorInput1 && isMultipleOperatorInput2) {
 				headOperatorWrappers.add(wrapper);
 			} else if (isMultipleOperatorInput1) {
-				wrapper.addPrevious(visit(input2, headOperatorWrappers, wrapper));
+				wrapper.addPrevious(visit(input2, headOperatorWrappers, wrapper), 2);
 				headOperatorWrappers.add(wrapper);
 			} else if (isMultipleOperatorInput2) {
-				wrapper.addPrevious(visit(input1, headOperatorWrappers, wrapper));
+				wrapper.addPrevious(visit(input1, headOperatorWrappers, wrapper), 1);
 				headOperatorWrappers.add(wrapper);
 			} else {
-				wrapper.addPrevious(visit(input1, headOperatorWrappers, wrapper));
-				wrapper.addPrevious(visit(input2, headOperatorWrappers, wrapper));
+				wrapper.addPrevious(visit(input1, headOperatorWrappers, wrapper), 1);
+				wrapper.addPrevious(visit(input2, headOperatorWrappers, wrapper), 2);
 			}
 			return wrapper;
 		} else {

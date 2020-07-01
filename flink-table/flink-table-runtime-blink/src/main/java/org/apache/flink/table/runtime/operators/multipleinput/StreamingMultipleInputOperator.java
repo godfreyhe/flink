@@ -25,10 +25,12 @@ import org.apache.flink.streaming.api.operators.AbstractStreamOperatorV2;
 import org.apache.flink.streaming.api.operators.Input;
 import org.apache.flink.streaming.api.operators.MultipleInputStreamOperator;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
+import org.apache.flink.streaming.api.operators.Output;
 import org.apache.flink.streaming.api.operators.StreamOperator;
 import org.apache.flink.streaming.api.operators.StreamOperatorParameters;
 import org.apache.flink.streaming.api.operators.StreamTaskStateInitializer;
 import org.apache.flink.streaming.api.operators.TwoInputStreamOperator;
+import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.runtime.tasks.ProcessingTimeServiceAware;
 import org.apache.flink.table.api.TableException;
 import org.apache.flink.table.data.RowData;
@@ -58,32 +60,71 @@ public class StreamingMultipleInputOperator
 		this.headOperatorWrappers = checkNotNull(headOperatorWrappers);
 		this.tailOperatorWrapper = checkNotNull(tailOperatorWrapper);
 		// init all operator
-		for (StreamOperatorWrapper<?> wrapper : getAllOperators()) {
-			if (wrapper.factory instanceof ProcessingTimeServiceAware) {
-				((ProcessingTimeServiceAware) wrapper.factory).setProcessingTimeService(parameters.getProcessingTimeService());
-			}
-			wrapper.createOperator(parameters);
+		createOperator(parameters, tailOperatorWrapper);
+	}
+
+	private void createOperator(StreamOperatorParameters<RowData> parameters, StreamOperatorWrapper<?> wrapper) {
+		if (wrapper.factory instanceof ProcessingTimeServiceAware) {
+			((ProcessingTimeServiceAware) wrapper.factory).setProcessingTimeService(parameters.getProcessingTimeService());
 		}
+		wrapper.createOperator(parameters);
+		if (wrapper.getPrevious().size() == 1) {
+			Output<StreamRecord<RowData>> output = new ChainingOutput(
+					(OneInputStreamOperator<RowData, RowData>) wrapper.getStreamOperator());
+			createOperator(createParameters(parameters, output), wrapper.getPrevious().get(0).f0);
+		} else if (wrapper.getPrevious().size() == 2) {
+			Output<StreamRecord<RowData>> output1 = new ChainingOutput2(
+					(TwoInputStreamOperator<RowData, RowData, RowData>) wrapper.getStreamOperator(), wrapper.getPrevious().get(0).f1);
+			createOperator(createParameters(parameters, output1), wrapper.getPrevious().get(0).f0);
+
+			Output<StreamRecord<RowData>> output2 = new ChainingOutput2(
+					(TwoInputStreamOperator<RowData, RowData, RowData>) wrapper.getStreamOperator(), wrapper.getPrevious().get(1).f1);
+			createOperator(createParameters(parameters, output2), wrapper.getPrevious().get(1).f0);
+		} else if (wrapper.getPrevious().isEmpty()) {
+			// do nothing
+		} else {
+			throw new TableException("Unsupported StreamOperatorWrapper: " + wrapper);
+		}
+	}
+
+	private StreamOperatorParameters<RowData> createParameters(
+			StreamOperatorParameters<RowData> parameters,
+			Output<StreamRecord<RowData>> output) {
+		return new StreamOperatorParameters<>(
+				parameters.getContainingTask(),
+				parameters.getStreamConfig(),
+				output,
+				parameters::getProcessingTimeService,
+				parameters.getOperatorEventDispatcher()
+		);
 	}
 
 	@Override
 	public List<Input> getInputs() {
 		List<Input> inputs = new ArrayList<>(numberOfInputs);
-		for (int i = 0; i < headOperatorWrappers.size(); ++i) {
-			int inputId = i + 1; // start from 1
-			StreamOperatorWrapper<?> wrapper = headOperatorWrappers.get(i);
+		int inputId = 1; // start from 1
+		for (StreamOperatorWrapper<?> wrapper : headOperatorWrappers) {
 			StreamOperator<RowData> op = wrapper.getStreamOperator();
 			if (op instanceof OneInputStreamOperator) {
-				inputs.add(new OneInput(this, inputId, (OneInputStreamOperator<RowData, RowData>) op));
+				inputs.add(new OneInput(this, inputId++, (OneInputStreamOperator<RowData, RowData>) op));
 			} else if (op instanceof TwoInputStreamOperator) {
-				inputs.add(new TwoInput(this, inputId, (TwoInputStreamOperator<RowData, RowData, RowData>) op, 1));
-				inputs.add(new TwoInput(this, inputId, (TwoInputStreamOperator<RowData, RowData, RowData>) op, 2));
+				inputs.add(new TwoInput(this, inputId++, (TwoInputStreamOperator<RowData, RowData, RowData>) op, 1));
+				inputs.add(new TwoInput(this, inputId++, (TwoInputStreamOperator<RowData, RowData, RowData>) op, 2));
 			} else {
 				throw new TableException("Unsupported StreamOperator: " + op);
 			}
 		}
 		checkArgument(inputs.size() == numberOfInputs);
 		return inputs;
+	}
+
+	@Override
+	public void initializeState(StreamTaskStateInitializer streamTaskStateManager) throws Exception {
+		super.initializeState(streamTaskStateManager);
+		for (StreamOperatorWrapper<?> wrapper : getAllOperators(true)) {
+			StreamOperator<?> operator = wrapper.getStreamOperator();
+			operator.initializeState(streamTaskStateManager);
+		}
 	}
 
 	/**

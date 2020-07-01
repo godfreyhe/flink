@@ -27,6 +27,7 @@ import org.apache.flink.table.data.RowData;
 
 public class OneInput extends InputBase {
 
+	private final int inputId;
 	private final OneInputStreamOperator<RowData, RowData> op;
 
 	public OneInput(
@@ -35,10 +36,12 @@ public class OneInput extends InputBase {
 			OneInputStreamOperator<RowData, RowData> op) {
 		super(owner, inputId, op);
 		this.op = op;
+		this.inputId = inputId;
 	}
 
 	@Override
 	public void processElement(StreamRecord<RowData> element) throws Exception {
+		System.out.println(inputId + ": " + Thread.currentThread().getId() + ": " + element.getValue().getLong(0) + ", " + element.getValue().getInt(1));
 		op.processElement(element);
 	}
 

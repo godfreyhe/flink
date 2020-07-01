@@ -85,7 +85,8 @@ class StreamExecMultipleInputNode(
     )
 
     // add inputs
-    inputTransforms.foreach(input => multipleTransform.addInput(input, keySelectorMap.get(input)))
+    // FIXME
+    inputTransforms.reverse.foreach(input => multipleTransform.addInput(input, keySelectorMap.get(input)))
 
     if (tailTransform.getMaxParallelism > 0) {
       multipleTransform.setMaxParallelism(tailTransform.getMaxParallelism)

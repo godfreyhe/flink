@@ -19,6 +19,7 @@
 package org.apache.flink.table.planner.runtime.stream.sql
 
 import org.apache.flink.api.scala._
+import org.apache.flink.configuration.{CoreOptions, PipelineOptions}
 import org.apache.flink.streaming.api.TimeCharacteristic
 import org.apache.flink.table.api._
 import org.apache.flink.table.api.bridge.scala._
@@ -27,6 +28,7 @@ import org.apache.flink.table.planner.factories.TestValuesTableFactory
 import org.apache.flink.table.planner.runtime.utils.StreamingWithStateTestBase.StateBackendMode
 import org.apache.flink.table.planner.runtime.utils._
 import org.apache.flink.types.Row
+
 import org.junit.Assert._
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -652,11 +654,40 @@ class JoinITCase(state: StateBackendMode) extends StreamingWithStateTestBase(sta
     val query2 = "SELECT SUM(b2) AS b2, b1 FROM B group by b1"
     val query = s"SELECT a1, b1 FROM ($query1) RIGHT JOIN ($query2) ON a1 = b1"
 
+    System.setProperty("org.codehaus.janino.source_debugging.enable", "true")
+    System.setProperty("org.codehaus.janino.source_debugging.dir", "/Users/xiaoling.hxl/tmp/flink/flink-table/flink-table-planner-blink/src/test/scala/org/apache/flink/table/planner/runtime")
+
+    tEnv.getConfig.getConfiguration.set(CoreOptions.DEFAULT_PARALLELISM, Integer.valueOf(1))
+    tEnv.getConfig.getConfiguration.set(PipelineOptions.MAX_PARALLELISM, Integer.valueOf(1))
     val sink = new TestingRetractSink
     tEnv.sqlQuery(query).toRetractStream[Row].addSink(sink).setParallelism(1)
     env.execute()
 
     val expected = Seq("1,1", "2,2", "null,5", "3,3", "null,4")
+    assertEquals(expected.sorted, sink.getRetractResults.sorted)
+  }
+
+  @Test
+  def test1(): Unit = {
+    val query = "SELECT SUM(a2) AS a2, a1 FROM A group by a1"
+
+    val sink = new TestingRetractSink
+    tEnv.sqlQuery(query).toRetractStream[Row].addSink(sink).setParallelism(1)
+    env.execute()
+
+    val expected = Seq("1,1, 2,2, 2,3")
+    assertEquals(expected.sorted, sink.getRetractResults.sorted)
+  }
+
+  @Test
+  def test2(): Unit = {
+    val query = "SELECT SUM(b2) AS b2, b1 FROM B group by b1"
+
+    val sink = new TestingRetractSink
+    tEnv.sqlQuery(query).toRetractStream[Row].addSink(sink).setParallelism(1)
+    env.execute()
+
+    val expected = Seq("1,1, 15,3, 34,4, 5,2, 65,5")
     assertEquals(expected.sorted, sink.getRetractResults.sorted)
   }
 
