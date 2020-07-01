@@ -29,6 +29,7 @@ import org.apache.flink.streaming.api.operators.StreamOperator;
 import org.apache.flink.streaming.api.operators.StreamOperatorParameters;
 import org.apache.flink.streaming.api.operators.StreamTaskStateInitializer;
 import org.apache.flink.streaming.api.operators.TwoInputStreamOperator;
+import org.apache.flink.streaming.runtime.tasks.ProcessingTimeServiceAware;
 import org.apache.flink.table.api.TableException;
 import org.apache.flink.table.data.RowData;
 
@@ -56,6 +57,13 @@ public class StreamingMultipleInputOperator
 		this.numberOfInputs = numberOfInputs;
 		this.headOperatorWrappers = checkNotNull(headOperatorWrappers);
 		this.tailOperatorWrapper = checkNotNull(tailOperatorWrapper);
+		// init all operator
+		for (StreamOperatorWrapper<?> wrapper : getAllOperators()) {
+			if (wrapper.factory instanceof ProcessingTimeServiceAware) {
+				((ProcessingTimeServiceAware) wrapper.factory).setProcessingTimeService(parameters.getProcessingTimeService());
+			}
+			wrapper.createOperator(parameters);
+		}
 	}
 
 	@Override

@@ -19,13 +19,15 @@
 package org.apache.flink.table.planner.plan.nodes.physical.stream
 
 import org.apache.flink.api.dag.Transformation
-import org.apache.flink.streaming.api.transformations.MultipleInputTransformation
+import org.apache.flink.api.java.functions.KeySelector
+import org.apache.flink.streaming.api.transformations.{KeyedMultipleInputTransformation, OneInputTransformation, TwoInputTransformation}
+import org.apache.flink.table.api.TableException
 import org.apache.flink.table.data.RowData
 import org.apache.flink.table.planner.calcite.FlinkTypeFactory
 import org.apache.flink.table.planner.delegation.StreamPlanner
 import org.apache.flink.table.planner.plan.nodes.exec.{ExecNode, StreamExecNode}
 import org.apache.flink.table.planner.plan.nodes.physical.MultipleInputRel
-import org.apache.flink.table.runtime.operators.multipleinput.StreamingMultipleInputOperatorFactory
+import org.apache.flink.table.runtime.operators.multipleinput.{StreamingMultipleInputOperatorFactory, TransformationConverter}
 import org.apache.flink.table.runtime.typeutils.RowDataTypeInfo
 
 import org.apache.calcite.plan.{RelOptCluster, RelTraitSet}
@@ -34,6 +36,7 @@ import org.apache.calcite.rel.RelNode
 import java.util
 
 import scala.collection.JavaConversions._
+import scala.collection.mutable
 
 class StreamExecMultipleInputNode(
     cluster: RelOptCluster,
@@ -63,18 +66,26 @@ class StreamExecMultipleInputNode(
 
     val outputType = RowDataTypeInfo.of(FlinkTypeFactory.toLogicalRowType(getRowType))
 
-    val multipleTransform = new MultipleInputTransformation[RowData](
+    val converter = new TransformationConverter(inputTransforms, tailTransform)
+    val tailOpAndHeadOps = converter.convert()
+
+    val headTransforms = new mutable.ListBuffer[Transformation[_]]()
+    val keySelectorMap = new util.HashMap[Transformation[_], KeySelector[_, _]]()
+    visit(inputTransforms.toList, tailTransform, keySelectorMap, headTransforms)
+
+    val multipleTransform = new KeyedMultipleInputTransformation[RowData](
       getRelDetailedDescription,
       new StreamingMultipleInputOperatorFactory(
         inputTransforms.size,
-        inputTransforms,
-        tailTransform),
+        tailOpAndHeadOps.f1,
+        tailOpAndHeadOps.f0),
       outputType,
-      tailTransform.getParallelism // TODO
+      tailTransform.getParallelism, // TODO
+      headTransforms.head.asInstanceOf[OneInputTransformation[_, _]].getStateKeyType // TODO
     )
 
     // add inputs
-    inputTransforms.foreach(input => multipleTransform.addInput(input))
+    inputTransforms.foreach(input => multipleTransform.addInput(input, keySelectorMap.get(input)))
 
     if (tailTransform.getMaxParallelism > 0) {
       multipleTransform.setMaxParallelism(tailTransform.getMaxParallelism)
@@ -84,6 +95,50 @@ class StreamExecMultipleInputNode(
     // TODO
 
     multipleTransform
+  }
+
+  private def visit(
+      inputTransforms: List[Transformation[_]],
+      transform: Transformation[_],
+      keySelectorMap: util.Map[Transformation[_], KeySelector[_, _]],
+      headTransforms: mutable.ListBuffer[Transformation[_]]): Unit = {
+
+    transform match {
+      case t: OneInputTransformation[_, _] =>
+        if (isMultipleOperatorInput(inputTransforms, t.getInput)) {
+          keySelectorMap.put(t.getInput, t.getStateKeySelector)
+          headTransforms.add(t)
+        } else {
+          visit(inputTransforms, t.getInput, keySelectorMap, headTransforms)
+        }
+      case t: TwoInputTransformation[_, _, _] =>
+        val isMultipleOperatorInput1 = isMultipleOperatorInput(inputTransforms, t.getInput1)
+        val isMultipleOperatorInput2 = isMultipleOperatorInput(inputTransforms, t.getInput2)
+        if (isMultipleOperatorInput1 && isMultipleOperatorInput2) {
+          keySelectorMap.put(t.getInput1, t.getStateKeySelector1)
+          keySelectorMap.put(t.getInput2, t.getStateKeySelector2)
+          headTransforms.add(t)
+        } else if (isMultipleOperatorInput1) {
+          visit(inputTransforms, t.getInput2, keySelectorMap, headTransforms)
+          keySelectorMap.put(t.getInput1, t.getStateKeySelector1)
+          headTransforms.add(t)
+        } else if (isMultipleOperatorInput2) {
+          visit(inputTransforms, t.getInput1, keySelectorMap, headTransforms)
+          keySelectorMap.put(t.getInput2, t.getStateKeySelector2)
+          headTransforms.add(t)
+        } else {
+          visit(inputTransforms, t.getInput2, keySelectorMap, headTransforms)
+          visit(inputTransforms, t.getInput1, keySelectorMap, headTransforms)
+        }
+      case _ =>
+        throw new TableException("Unsupported Transformation: " + transform)
+    }
+  }
+
+  private def isMultipleOperatorInput(
+      inputTransforms: List[Transformation[_]],
+      transform: Transformation[_]) = {
+    inputTransforms.contains(transform)
   }
 
 }

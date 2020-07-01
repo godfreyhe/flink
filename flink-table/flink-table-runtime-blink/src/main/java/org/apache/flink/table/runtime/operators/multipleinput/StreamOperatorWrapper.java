@@ -23,10 +23,13 @@ import org.apache.flink.streaming.api.operators.BoundedMultiInput;
 import org.apache.flink.streaming.api.operators.BoundedOneInput;
 import org.apache.flink.streaming.api.operators.MailboxExecutor;
 import org.apache.flink.streaming.api.operators.StreamOperator;
+import org.apache.flink.streaming.api.operators.StreamOperatorFactory;
+import org.apache.flink.streaming.api.operators.StreamOperatorParameters;
 import org.apache.flink.table.data.RowData;
 
 import javax.annotation.Nonnull;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.IdentityHashMap;
@@ -37,6 +40,7 @@ import java.util.NoSuchElementException;
 import java.util.Queue;
 import java.util.Set;
 
+import static org.apache.flink.util.Preconditions.checkArgument;
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
 /**
@@ -47,9 +51,12 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * header operator wrapper.
  */
 @Internal
-public class StreamOperatorWrapper<OP extends StreamOperator<RowData>> {
+public class StreamOperatorWrapper<OP extends StreamOperator<RowData>> implements Serializable {
 
-	private final OP wrapped;
+	private transient OP wrapped;
+
+	public final StreamOperatorFactory<RowData> factory;
+	private final String name;
 
 	private List<StreamOperatorWrapper<?>> previous;
 
@@ -57,8 +64,9 @@ public class StreamOperatorWrapper<OP extends StreamOperator<RowData>> {
 
 	private boolean closed;
 
-	StreamOperatorWrapper(OP wrapped) {
-		this.wrapped = checkNotNull(wrapped);
+	StreamOperatorWrapper(StreamOperatorFactory<RowData> factory, String name) {
+		this.factory = checkNotNull(factory);
+		this.name = name;
 		this.previous = new ArrayList<>();
 		this.next = new ArrayList<>();
 	}
@@ -97,8 +105,13 @@ public class StreamOperatorWrapper<OP extends StreamOperator<RowData>> {
 		}
 	}
 
+	public void createOperator(StreamOperatorParameters<RowData> parameters) {
+		checkArgument(wrapped == null);
+		wrapped = factory.createStreamOperator(parameters);
+	}
+
 	public OP getStreamOperator() {
-		return wrapped;
+		return checkNotNull(wrapped);
 	}
 
 	void addPrevious(StreamOperatorWrapper<?> previous) {
