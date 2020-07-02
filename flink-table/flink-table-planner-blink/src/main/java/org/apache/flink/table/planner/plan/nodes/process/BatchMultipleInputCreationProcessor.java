@@ -123,7 +123,7 @@ public class BatchMultipleInputCreationProcessor extends AbstractMultipleInputCr
 		Set<ExecNode> inputSets = new HashSet<>(inputs);
 		Map<ExecNode, String> orderStrings = new HashMap<>();
 
-		dfs(execNode, "", inputSets, orderStrings);
+		dfs(execNode, "", inputSets, orderStrings, new HashMap<>());
 		List<String> orders = new ArrayList<>(orderStrings.values());
 		Collections.sort(orders);
 		Map<String, Integer> string2Int = new HashMap<>();
@@ -138,17 +138,22 @@ public class BatchMultipleInputCreationProcessor extends AbstractMultipleInputCr
 		return readOrder;
 	}
 
-	private void dfs(ExecNode<?, ?> execNode, String s, Set<ExecNode> inputSets, Map<ExecNode, String> orderStrings) {
-		if (orderStrings.containsKey(execNode)) {
-			String order = orderStrings.get(execNode);
+	private void dfs(
+			ExecNode<?, ?> execNode,
+			String s, Set<ExecNode> inputSets,
+			Map<ExecNode, String> orderStrings,
+			Map<ExecNode, String> visited) {
+		if (visited.containsKey(execNode)) {
+			String order = visited.get(execNode);
 			Preconditions.checkState(
 				order.equals(s),
 				"The same exec node has two different orders. This is a bug.");
 			return;
 		}
 
-		orderStrings.put(execNode, s);
+		visited.put(execNode, s);
 		if (inputSets.contains(execNode)) {
+			orderStrings.put(execNode, s);
 			return;
 		}
 
@@ -156,16 +161,16 @@ public class BatchMultipleInputCreationProcessor extends AbstractMultipleInputCr
 			BatchExecHashJoin hashJoin = (BatchExecHashJoin) execNode;
 			int buildIdx = hashJoin.leftIsBuild() ? 0 : 1;
 			int probeIdx = 1 - buildIdx;
-			dfs(hashJoin.getInputNodes().get(buildIdx), s + "b", inputSets, orderStrings);
-			dfs(hashJoin.getInputNodes().get(probeIdx), s + "p", inputSets, orderStrings);
+			dfs(hashJoin.getInputNodes().get(buildIdx), s + "b", inputSets, orderStrings, visited);
+			dfs(hashJoin.getInputNodes().get(probeIdx), s + "p", inputSets, orderStrings, visited);
 		} else if (execNode instanceof BatchExecNestedLoopJoin) {
 			BatchExecNestedLoopJoin nestedLoopJoin = (BatchExecNestedLoopJoin) execNode;
 			int buildIdx = nestedLoopJoin.leftIsBuild() ? 0 : 1;
 			int probeIdx = 1 - buildIdx;
-			dfs(nestedLoopJoin.getInputNodes().get(buildIdx), s + "b", inputSets, orderStrings);
-			dfs(nestedLoopJoin.getInputNodes().get(probeIdx), s + "p", inputSets, orderStrings);
+			dfs(nestedLoopJoin.getInputNodes().get(buildIdx), s + "b", inputSets, orderStrings, visited);
+			dfs(nestedLoopJoin.getInputNodes().get(probeIdx), s + "p", inputSets, orderStrings, visited);
 		} else {
-			execNode.getInputNodes().forEach(n -> dfs(n, s + "b", inputSets, orderStrings));
+			execNode.getInputNodes().forEach(n -> dfs(n, s + "b", inputSets, orderStrings, visited));
 		}
 	}
 }

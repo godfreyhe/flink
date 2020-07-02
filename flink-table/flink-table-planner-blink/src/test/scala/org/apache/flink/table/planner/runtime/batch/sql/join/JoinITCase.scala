@@ -28,7 +28,7 @@ import org.apache.flink.streaming.api.transformations.{OneInputTransformation, S
 import org.apache.flink.table.planner.delegation.PlannerBase
 import org.apache.flink.table.planner.expressions.utils.FuncWithOpen
 import org.apache.flink.table.planner.runtime.batch.sql.join.JoinType.{BroadcastHashJoin, HashJoin, JoinType, NestedLoopJoin, SortMergeJoin}
-import org.apache.flink.table.planner.runtime.utils.BatchTestBase
+import org.apache.flink.table.planner.runtime.utils.{BatchTestBase, TestingRetractSink}
 import org.apache.flink.table.planner.runtime.utils.BatchTestBase.row
 import org.apache.flink.table.planner.runtime.utils.TestData._
 import org.apache.flink.table.planner.sinks.CollectRowTableSink
@@ -40,6 +40,8 @@ import org.junit.{Assert, Before, Test}
 import java.util
 
 import org.apache.flink.table.api.internal.TableEnvironmentInternal
+import org.apache.flink.types.Row
+import org.junit.Assert.assertEquals
 
 import scala.collection.JavaConversions._
 import scala.collection.Seq
@@ -51,6 +53,7 @@ class JoinITCase(expectedJoinType: JoinType) extends BatchTestBase {
   override def before(): Unit = {
     super.before()
     registerCollection("SmallTable3", smallData3, type3, "a, b, c", nullablesOfSmallData3)
+    registerCollection("SmallTable5", smallData5, type5, "a, b, c", nullablesOfSmallData5)
     registerCollection("Table3", data3, type3, "a, b, c", nullablesOfData3)
     registerCollection("Table5", data5, type5, "d, e, f, g, h", nullablesOfData5)
     registerCollection("NullTable3", nullData3, type3, "a, b, c", nullablesOfNullData3)
@@ -59,6 +62,24 @@ class JoinITCase(expectedJoinType: JoinType) extends BatchTestBase {
     registerCollection("r", data2_2, INT_DOUBLE, "c, d")
     registerCollection("t", data2_3, INT_DOUBLE, "c, d", nullablesOfData2_3)
     JoinITCaseHelper.disableOtherJoinOpForJoin(tEnv, expectedJoinType)
+  }
+
+  @Test
+  def testRightJoinWithEqualPk(): Unit = {
+    System.setProperty("org.codehaus.janino.source_debugging.enable", "true")
+    System.setProperty("org.codehaus.janino.source_debugging.dir", "/Users/tsreaper/github/flink/flink-table/flink-table-planner-blink/src/test/scala/org/apache/flink/table/planner/runtime/batch/sql/join")
+
+    val query1 = "SELECT SUM(a) AS s1, b AS b1 FROM SmallTable3 group by b"
+    val query2 = "SELECT SUM(a) AS s2, b AS b2 FROM SmallTable5 group by b"
+    val query = s"SELECT s1, s2, b2 FROM ($query1) RIGHT JOIN ($query2) ON b1 = b2"
+
+    checkResult(
+      query,
+      Seq(
+        row(1, 1, 10L),
+        row(5, 2, 20L),
+        row(null, 2, 30L))
+    )
   }
 
   @Test
@@ -841,10 +862,7 @@ object JoinITCase {
   @Parameterized.Parameters(name = "{0}")
   def parameters(): util.Collection[Any] = {
     util.Arrays.asList(
-      Array(BroadcastHashJoin),
-      Array(HashJoin),
-      Array(SortMergeJoin),
-      Array(NestedLoopJoin))
+      Array(HashJoin))
   }
 }
 

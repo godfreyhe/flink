@@ -24,11 +24,16 @@ import org.apache.flink.table.data.RowData
 import org.apache.flink.table.planner.delegation.BatchPlanner
 import org.apache.flink.table.planner.plan.nodes.exec.{BatchExecNode, ExecNode}
 import org.apache.flink.table.planner.plan.nodes.physical.MultipleInputRel
-
 import org.apache.calcite.plan.{RelOptCluster, RelTraitSet}
 import org.apache.calcite.rel.RelNode
-
 import java.util
+
+import org.apache.flink.configuration.MemorySize
+import org.apache.flink.streaming.api.transformations.MultipleInputTransformation
+import org.apache.flink.table.api.config.ExecutionConfigOptions
+import org.apache.flink.table.planner.calcite.FlinkTypeFactory
+import org.apache.flink.table.runtime.operators.multipleinput.{BatchMultipleInputOperatorFactory, StreamingMultipleInputOperatorFactory, TransformationConverter}
+import org.apache.flink.table.runtime.typeutils.RowDataTypeInfo
 
 import scala.collection.JavaConversions._
 
@@ -42,6 +47,7 @@ class BatchExecMultipleInputNode(
   with BatchExecNode[RowData] {
 
   override def getDamBehavior: DamBehavior = {
+    // TODO this is not correct
     val inputNodes = inputRels.map(_.asInstanceOf[BatchExecNode[_]])
     if (inputNodes.forall(n => n.getDamBehavior == DamBehavior.PIPELINED)) {
       DamBehavior.PIPELINED
@@ -65,7 +71,36 @@ class BatchExecMultipleInputNode(
   }
 
   override protected def translateToPlanInternal(planner: BatchPlanner): Transformation[RowData] = {
-    ???
+    val inputTransforms = getInputNodes.map(n => n.translateToPlan(planner))
+    val tailTransform = outputRel.asInstanceOf[BatchExecNode[_]].translateToPlan(planner)
+
+    val outputType = RowDataTypeInfo.of(FlinkTypeFactory.toLogicalRowType(getRowType))
+
+    val converter = new TransformationConverter(inputTransforms, tailTransform, readOrder)
+    val tailOpAndHeadOps = converter.convert()
+
+    val multipleTransform = new MultipleInputTransformation[RowData](
+      getRelDetailedDescription,
+      new BatchMultipleInputOperatorFactory(
+        inputTransforms.size,
+        tailOpAndHeadOps.f1,
+        tailOpAndHeadOps.f0),
+      outputType,
+      tailTransform.getParallelism)
+
+    // add inputs
+    inputTransforms.foreach(input => multipleTransform.addInput(input))
+
+    if (tailTransform.getMaxParallelism > 0) {
+      multipleTransform.setMaxParallelism(tailTransform.getMaxParallelism)
+    }
+
+    val minResources = converter.getMinResources
+    val preferredResources = converter.getPreferredResources
+    multipleTransform.setResources(minResources, preferredResources)
+    ExecNode.setManagedMemoryWeight(multipleTransform, MemorySize.parseBytes("128mb"))
+
+    multipleTransform
   }
 
 }

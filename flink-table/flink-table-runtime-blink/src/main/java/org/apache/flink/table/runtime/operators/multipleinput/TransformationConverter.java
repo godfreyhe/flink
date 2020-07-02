@@ -18,6 +18,7 @@
 
 package org.apache.flink.table.runtime.operators.multipleinput;
 
+import org.apache.flink.api.common.operators.ResourceSpec;
 import org.apache.flink.api.dag.Transformation;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.streaming.api.transformations.OneInputTransformation;
@@ -26,77 +27,118 @@ import org.apache.flink.table.api.TableException;
 import org.apache.flink.table.data.RowData;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 public class TransformationConverter {
 
 	private final List<Transformation<?>> inputTransforms;
 	private final Transformation<?> tailTransform;
+	private final int[] readOrder;
+
+	private ResourceSpec minResources;
+	private ResourceSpec preferredResources;
 
 	public TransformationConverter(
 			List<Transformation<?>> inputTransforms,
 			Transformation<?> tailTransform) {
+		this(inputTransforms, tailTransform, new int[inputTransforms.size()]);
+	}
+
+	public TransformationConverter(
+			List<Transformation<?>> inputTransforms,
+			Transformation<?> tailTransform,
+			int[] readOrder) {
 		this.inputTransforms = inputTransforms;
 		this.tailTransform = tailTransform;
+		this.readOrder = readOrder;
 	}
 
 	public Tuple2<StreamOperatorWrapper<?>, List<StreamOperatorWrapper<?>>> convert() {
 		List<StreamOperatorWrapper<?>> headOperatorWrappers = new ArrayList<>();
-		StreamOperatorWrapper<?> tailOperatorWrapper = visit(tailTransform, headOperatorWrappers, null);
+		StreamOperatorWrapper<?> tailOperatorWrapper = visit(tailTransform, headOperatorWrappers, null, -1);
 
 		return new Tuple2<>(tailOperatorWrapper, headOperatorWrappers);
+	}
+
+	public ResourceSpec getMinResources() {
+		return minResources;
+	}
+
+	public ResourceSpec getPreferredResources() {
+		return preferredResources;
 	}
 
 	private StreamOperatorWrapper<?> visit(
 			Transformation<?> transform,
 			List<StreamOperatorWrapper<?>> headOperatorWrappers,
-			StreamOperatorWrapper<?> outputWrapper) {
+			StreamOperatorWrapper<?> outputWrapper,
+			int outputIdx) {
+
+		if (minResources == null) {
+			minResources = transform.getMinResources();
+			preferredResources = transform.getPreferredResources();
+		} else {
+			minResources = minResources.merge(transform.getMinResources());
+			preferredResources = preferredResources.merge(transform.getPreferredResources());
+		}
 
 		if (transform instanceof OneInputTransformation) {
 			OneInputTransformation<RowData, RowData> oneInputTransform = (OneInputTransformation) transform;
 			Transformation<?> input = oneInputTransform.getInput();
 
-			StreamOperatorWrapper<?> wrapper = new StreamOperatorWrapper(oneInputTransform.getOperatorFactory(), oneInputTransform.getName());
+			StreamOperatorWrapper<?> wrapper = new StreamOperatorWrapper(
+				oneInputTransform.getOperatorFactory(),
+				oneInputTransform.getName(),
+				Collections.singletonList(oneInputTransform.getInputType()),
+				oneInputTransform.getOutputType());
 			if (outputWrapper != null) {
-				wrapper.addNext(outputWrapper);
+				wrapper.addNext(outputWrapper, outputIdx);
 			}
-			if (isMultipleOperatorInput(input)) {
+
+			int inputIdx = inputTransforms.indexOf(input);
+			if (inputIdx >= 0) {
+				wrapper.readOrder = Collections.singletonList(readOrder[inputIdx]);
 				headOperatorWrappers.add(wrapper);
 			} else {
-				wrapper.addPrevious(visit(input, headOperatorWrappers, wrapper), 1);
+				wrapper.addPrevious(visit(input, headOperatorWrappers, wrapper, 1), 1);
 			}
 			return wrapper;
 		} else if (transform instanceof TwoInputTransformation) {
 			TwoInputTransformation<RowData, RowData, RowData> twoInputTransform = (TwoInputTransformation) transform;
 			Transformation<?> input1 = twoInputTransform.getInput1();
 			Transformation<?> input2 = twoInputTransform.getInput2();
-			boolean isMultipleOperatorInput1 = isMultipleOperatorInput(input1);
-			boolean isMultipleOperatorInput2 = isMultipleOperatorInput(input2);
+			int inputIdx1 = inputTransforms.indexOf(input1);
+			int inputIdx2 = inputTransforms.indexOf(input2);
 
-			StreamOperatorWrapper<?> wrapper = new StreamOperatorWrapper(twoInputTransform.getOperatorFactory(), twoInputTransform.getName());
+			StreamOperatorWrapper<?> wrapper = new StreamOperatorWrapper(
+				twoInputTransform.getOperatorFactory(),
+				twoInputTransform.getName(),
+				Arrays.asList(twoInputTransform.getInputType1(), twoInputTransform.getInputType2()),
+				twoInputTransform.getOutputType());
 			if (outputWrapper != null) {
-				wrapper.addNext(outputWrapper);
+				wrapper.addNext(outputWrapper, outputIdx);
 			}
-			if (isMultipleOperatorInput1 && isMultipleOperatorInput2) {
+			if (inputIdx1 >= 0 && inputIdx2 >= 0) {
+				wrapper.readOrder = Arrays.asList(inputIdx1, inputIdx2);
 				headOperatorWrappers.add(wrapper);
-			} else if (isMultipleOperatorInput1) {
-				wrapper.addPrevious(visit(input2, headOperatorWrappers, wrapper), 2);
+			} else if (inputIdx1 >= 0) {
+				wrapper.readOrder = Arrays.asList(inputIdx1, -1);
+				wrapper.addPrevious(visit(input2, headOperatorWrappers, wrapper, 2), 2);
 				headOperatorWrappers.add(wrapper);
-			} else if (isMultipleOperatorInput2) {
-				wrapper.addPrevious(visit(input1, headOperatorWrappers, wrapper), 1);
+			} else if (inputIdx2 >= 0) {
+				wrapper.readOrder = Arrays.asList(-1, inputIdx2);
+				wrapper.addPrevious(visit(input1, headOperatorWrappers, wrapper, 1), 1);
 				headOperatorWrappers.add(wrapper);
 			} else {
-				wrapper.addPrevious(visit(input1, headOperatorWrappers, wrapper), 1);
-				wrapper.addPrevious(visit(input2, headOperatorWrappers, wrapper), 2);
+				wrapper.addPrevious(visit(input1, headOperatorWrappers, wrapper, 1), 1);
+				wrapper.addPrevious(visit(input2, headOperatorWrappers, wrapper, 2), 2);
 			}
 			return wrapper;
 		} else {
 			// TODO supports UnionTransformation
 			throw new TableException("Unsupported Transformation: " + transform);
 		}
-	}
-
-	private boolean isMultipleOperatorInput(Transformation<?> transform) {
-		return inputTransforms.contains(transform);
 	}
 }

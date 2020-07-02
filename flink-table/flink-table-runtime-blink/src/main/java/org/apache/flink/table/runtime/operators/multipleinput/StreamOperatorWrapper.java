@@ -19,7 +19,9 @@
 package org.apache.flink.table.runtime.operators.multipleinput;
 
 import org.apache.flink.annotation.Internal;
+import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.java.tuple.Tuple2;
+import org.apache.flink.streaming.api.operators.AbstractStreamOperator;
 import org.apache.flink.streaming.api.operators.BoundedMultiInput;
 import org.apache.flink.streaming.api.operators.BoundedOneInput;
 import org.apache.flink.streaming.api.operators.MailboxExecutor;
@@ -58,18 +60,29 @@ public class StreamOperatorWrapper<OP extends StreamOperator<RowData>> implement
 
 	public final StreamOperatorFactory<RowData> factory;
 	private final String name;
+	public List<Integer> readOrder = Collections.emptyList();
 
 	private List<Tuple2<StreamOperatorWrapper<?>, Integer>> previous;
+	private int endCount;
+	private List<TypeInformation> inputTypes;
+	private TypeInformation outputType;
 
 	private List<StreamOperatorWrapper<?>> next;
+	private List<Integer> nextIdx;
 
 	private boolean closed;
 
-	StreamOperatorWrapper(StreamOperatorFactory<RowData> factory, String name) {
+	StreamOperatorWrapper(StreamOperatorFactory<RowData> factory, String name, List<TypeInformation> inputTypes, TypeInformation outputType) {
 		this.factory = checkNotNull(factory);
 		this.name = name;
+
 		this.previous = new ArrayList<>();
+		this.endCount = 0;
+		this.inputTypes = inputTypes;
+		this.outputType = outputType;
+
 		this.next = new ArrayList<>();
+		this.nextIdx = new ArrayList<>();
 	}
 
 	/**
@@ -99,28 +112,53 @@ public class StreamOperatorWrapper<OP extends StreamOperator<RowData>> implement
 	 * @param inputId the input ID starts from 1 which indicates the first input.
 	 */
 	public void endOperatorInput(int inputId) throws Exception {
+		endCount++;
 		if (wrapped instanceof BoundedOneInput) {
 			((BoundedOneInput) wrapped).endInput();
+			endNexts();
 		} else if (wrapped instanceof BoundedMultiInput) {
 			((BoundedMultiInput) wrapped).endInput(inputId);
+			if (endCount >= 2) {
+				endNexts();
+			}
+		} else {
+			endNexts();
+		}
+	}
+
+	private void endNexts() throws Exception {
+		for (int i = 0; i < next.size(); i++) {
+			next.get(i).endOperatorInput(nextIdx.get(i));
 		}
 	}
 
 	public void createOperator(StreamOperatorParameters<RowData> parameters) {
 		checkArgument(wrapped == null);
 		wrapped = factory.createStreamOperator(parameters);
+		if (wrapped instanceof AbstractStreamOperator) {
+			((AbstractStreamOperator) wrapped).setup(parameters.getContainingTask(), parameters.getStreamConfig(), parameters.getOutput());
+		}
 	}
 
 	public OP getStreamOperator() {
 		return checkNotNull(wrapped);
 	}
 
+	public List<TypeInformation> getInputTypes() {
+		return inputTypes;
+	}
+
+	public TypeInformation getOutputType() {
+		return outputType;
+	}
+
 	void addPrevious(StreamOperatorWrapper<?> previous, int inputIndex) {
 		this.previous.add(new Tuple2<>(previous, inputIndex));
 	}
 
-	void addNext(StreamOperatorWrapper<?> next) {
+	void addNext(StreamOperatorWrapper<?> next, int idx) {
 		this.next.add(next);
+		this.nextIdx.add(idx);
 	}
 
 	public List<Tuple2<StreamOperatorWrapper<?>, Integer>> getPrevious() {

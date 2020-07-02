@@ -144,9 +144,9 @@ object TestData {
 
   lazy val smallTupleData3: Seq[(Int, Long, String)] = {
     val data = new mutable.MutableList[(Int, Long, String)]
-    data.+=((1, 1L, "Hi"))
-    data.+=((2, 2L, "Hello"))
-    data.+=((3, 2L, "Hello world"))
+    data.+=((1, 10L, "Hi"))
+    data.+=((2, 20L, "Hello"))
+    data.+=((3, 20L, "Hello world"))
     data
   }
 
@@ -156,9 +156,9 @@ object TestData {
 
   lazy val smallTupleData5: Seq[(Int, Long, Int, String, Long)] = {
     val data = new mutable.MutableList[(Int, Long, Int, String, Long)]
-    data.+=((1, 1L, 0, "Hallo", 1L))
-    data.+=((2, 2L, 1, "Hallo Welt", 2L))
-    data.+=((2, 3L, 2, "Hallo Welt wie", 1L))
+    data.+=((1, 10L, 0, "Hallo", 1L))
+    data.+=((2, 20L, 1, "Hallo Welt", 2L))
+    data.+=((2, 30L, 2, "Hallo Welt wie", 1L))
     data
   }
 

@@ -50,6 +50,15 @@ public class BatchMultipleInputCreationProcessorTest extends TableTestBase {
 			"z",
 			new TypeInformation[]{BasicTypeInfo.INT_TYPE_INFO, BasicTypeInfo.LONG_TYPE_INFO, BasicTypeInfo.STRING_TYPE_INFO},
 			new String[]{"g", "h", "i"});
+
+		util.addTableSource(
+			"T1",
+			new TypeInformation[]{BasicTypeInfo.INT_TYPE_INFO, BasicTypeInfo.LONG_TYPE_INFO, BasicTypeInfo.STRING_TYPE_INFO},
+			new String[]{"a", "b", "c"});
+		util.addTableSource(
+			"T2",
+			new TypeInformation[]{BasicTypeInfo.INT_TYPE_INFO, BasicTypeInfo.LONG_TYPE_INFO, BasicTypeInfo.STRING_TYPE_INFO},
+			new String[]{"a", "b", "c"});
 	}
 
 	@Test
@@ -61,5 +70,13 @@ public class BatchMultipleInputCreationProcessorTest extends TableTestBase {
 
 		String sqlQuery = "SELECT * FROM (SELECT * FROM x, y WHERE x.a = y.d) T1, (SELECT * FROM x, z WHERE x.a = z.g) T2 WHERE T1.a = T2.a AND T1.b > T2.b";
 		util.verifyPlan(sqlQuery);
+	}
+
+	@Test
+	public void myTest() {
+		String query1 = "SELECT SUM(a) AS s1, b AS b1 FROM T1 group by b";
+		String query2 = "SELECT SUM(a) AS s2, b AS b2 FROM T2 group by b";
+		String query = "SELECT s1, s2, b1 FROM (" + query1 + ") RIGHT JOIN (" + query2 + ") ON b1 = b2";
+		util.verifyPlan(query);
 	}
 }
