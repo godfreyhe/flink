@@ -140,6 +140,38 @@ class DeadlockBreakupTest extends TableTestBase {
   }
 
   @Test
+  def testSubplanReuse_AddExchangeAsPipeline_HashJoin(): Unit = {
+    util.tableEnv.getConfig.getConfiguration.setBoolean(
+      OptimizerConfigOptions.TABLE_OPTIMIZER_REUSE_SUB_PLAN_ENABLED, true)
+    util.tableEnv.getConfig.getConfiguration.setBoolean(
+      OptimizerConfigOptions.TABLE_OPTIMIZER_REUSE_SOURCE_ENABLED, true)
+    util.tableEnv.getConfig.getConfiguration.setString(
+      ExecutionConfigOptions.TABLE_EXEC_DISABLED_OPERATORS, "NestedLoopJoin,SortMergeJoin")
+    val sqlQuery =
+      """
+        |WITH r AS (SELECT a, b FROM x)
+        |SELECT * FROM (SELECT SUM(a) AS a, b FROM r GROUP BY b) r1, (SELECT COUNT(a) AS a, b FROM r GROUP BY b) r2 WHERE r1.b = r2.b
+      """.stripMargin
+    util.verifyPlan(sqlQuery)
+  }
+
+  @Test
+  def testSubplanReuse_AddExchangeAsPipeline_NestedLoopJoin(): Unit = {
+    util.tableEnv.getConfig.getConfiguration.setBoolean(
+      OptimizerConfigOptions.TABLE_OPTIMIZER_REUSE_SUB_PLAN_ENABLED, true)
+    util.tableEnv.getConfig.getConfiguration.setBoolean(
+      OptimizerConfigOptions.TABLE_OPTIMIZER_REUSE_SOURCE_ENABLED, true)
+    util.tableEnv.getConfig.getConfiguration.setString(
+      ExecutionConfigOptions.TABLE_EXEC_DISABLED_OPERATORS, "HashJoin,SortMergeJoin")
+    val sqlQuery =
+      """
+        |WITH r AS (SELECT a, b FROM x)
+        |SELECT * FROM (SELECT SUM(a) AS a, b FROM r GROUP BY b) r1, (SELECT COUNT(a) AS a, b FROM r GROUP BY b) r2 WHERE r1.b = r2.b
+      """.stripMargin
+    util.verifyPlan(sqlQuery)
+  }
+
+  @Test
   def testReusedNodeIsBarrierNode(): Unit = {
     util.tableEnv.getConfig.getConfiguration.setBoolean(
       OptimizerConfigOptions.TABLE_OPTIMIZER_REUSE_SUB_PLAN_ENABLED, true)

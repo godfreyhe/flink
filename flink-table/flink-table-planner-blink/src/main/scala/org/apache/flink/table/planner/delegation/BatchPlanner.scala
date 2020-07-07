@@ -32,13 +32,14 @@ import org.apache.flink.table.planner.plan.reuse.DeadlockBreakupProcessor
 import org.apache.flink.table.planner.plan.utils.{ExecNodePlanDumper, FlinkRelOptUtil}
 import org.apache.flink.table.planner.sinks.{BatchSelectTableSink, SelectTableSinkBase}
 import org.apache.flink.table.planner.utils.{DummyStreamExecutionEnvironment, ExecutorUtils, PlanUtil}
-
 import org.apache.calcite.plan.{ConventionTraitDef, RelTrait, RelTraitDef}
 import org.apache.calcite.rel.logical.LogicalTableModify
 import org.apache.calcite.rel.{RelCollationTraitDef, RelNode}
 import org.apache.calcite.sql.SqlExplainLevel
-
 import java.util
+
+import org.apache.flink.table.api.config.OptimizerConfigOptions
+import org.apache.flink.table.planner.plan.multipleinput.MultipleInputNodeCreationProcessor
 
 import _root_.scala.collection.JavaConversions._
 
@@ -63,7 +64,12 @@ class BatchPlanner(
     val execNodePlan = super.translateToExecNodePlan(optimizedRelNodes)
     val context = new DAGProcessContext(this)
     // breakup deadlock
-    new DeadlockBreakupProcessor().process(execNodePlan, context)
+    val execNodePlanWithoutDeadlock = new DeadlockBreakupProcessor().process(execNodePlan, context)
+    if (config.getConfiguration.getBoolean(OptimizerConfigOptions.TABLE_OPTIMIZER_MULTIPLE_INPUT_ENABLED)) {
+      new MultipleInputNodeCreationProcessor(false).process(execNodePlanWithoutDeadlock, context)
+    } else {
+      execNodePlanWithoutDeadlock
+    }
   }
 
   override protected def translateToPlan(

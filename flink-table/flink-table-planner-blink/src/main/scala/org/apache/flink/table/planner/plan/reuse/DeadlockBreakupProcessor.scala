@@ -159,13 +159,18 @@ class DeadlockBreakupProcessor extends DAGProcessor {
       // 2. find all nodes from probe side of join
       val inputPathsOfProbeSide = buildInputPathsOfProbeSide(
         probeNode, reusedNodesInBuildSide, finder)
-      // 3. check whether all input paths have a barrier node (e.g. agg, sort)
-      if (inputPathsOfProbeSide.nonEmpty && !hasBarrierNodeInInputPaths(inputPathsOfProbeSide)) {
-        // 4. sets Exchange node(if does not exist, add one) as BATCH mode to break up the deadlock
+      if (inputPathsOfProbeSide.nonEmpty) {
+        // 3. check whether all input paths have a barrier node (e.g. agg, sort)
+        val hasBarrier = hasBarrierNodeInInputPaths(inputPathsOfProbeSide)
+        // 4. sets Exchange node (if does not exist, add one) as BATCH mode to break up the deadlock
+        // if there exists one input path with no barrier node,
+        // otherwise sets Exchange node as PIPELINED mode to hint the multiple input node creation process
         probeNode match {
           case e: BatchExecExchange =>
             // TODO create a cloned BatchExecExchange for PIPELINE output
-            e.setRequiredShuffleMode(ShuffleMode.BATCH)
+            if (!hasBarrier) {
+              e.setRequiredShuffleMode(ShuffleMode.BATCH)
+            }
           case _ =>
             val probeRel = probeNode.asInstanceOf[RelNode]
             val traitSet = probeRel.getTraitSet.replace(distribution)
@@ -174,7 +179,11 @@ class DeadlockBreakupProcessor extends DAGProcessor {
               traitSet,
               probeRel,
               distribution)
-            e.setRequiredShuffleMode(ShuffleMode.BATCH)
+            if (hasBarrier) {
+              e.setRequiredShuffleMode(ShuffleMode.PIPELINED)
+            } else {
+              e.setRequiredShuffleMode(ShuffleMode.BATCH)
+            }
             // replace join node's input
             join.replaceInputNode(probeSideIndex, e)
         }

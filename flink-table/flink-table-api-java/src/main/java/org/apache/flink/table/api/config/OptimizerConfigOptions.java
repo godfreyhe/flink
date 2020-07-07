@@ -99,4 +99,9 @@ public class OptimizerConfigOptions {
 		key("table.optimizer.join-reorder-enabled")
 			.defaultValue(false)
 			.withDescription("Enables join reorder in optimizer. Default is disabled.");
+
+	public static final ConfigOption<Boolean> TABLE_OPTIMIZER_MULTIPLE_INPUT_ENABLED =
+		key("table.optimizer.multiple-input-enabled")
+			.defaultValue(false)
+			.withDescription("Enables multiple input node creation. Default is disabled.");
 }
