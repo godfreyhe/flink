@@ -70,7 +70,14 @@ class MultipleInputRel(
     visited.entrySet().foreach(entry => {
       val rel = entry.getKey
       val id = entry.getValue
-      val children = rel.getInputs.map(inputRel => visited.get(inputRel)).filter(x => x != null).mkString(", ")
+      val children = rel.getInputs.map(inputRel => {
+        val childIdx = visited.get(inputRel)
+        if (childIdx == null) {
+          "input #" + (inputRels.indexOf(inputRel) + 1).toString
+        } else {
+          childIdx
+        }
+      }).mkString(", ")
       result(id - 1) = "member_id = " + id + ": " +
         rel.asInstanceOf[FlinkRelNode].getRelDetailedDescription + (
         if (children.length > 0) {

@@ -102,6 +102,6 @@ public class OptimizerConfigOptions {
 
 	public static final ConfigOption<Boolean> TABLE_OPTIMIZER_MULTIPLE_INPUT_ENABLED =
 		key("table.optimizer.multiple-input-enabled")
-			.defaultValue(false)
+			.defaultValue(true)
 			.withDescription("Enables multiple input node creation. Default is disabled.");
 }

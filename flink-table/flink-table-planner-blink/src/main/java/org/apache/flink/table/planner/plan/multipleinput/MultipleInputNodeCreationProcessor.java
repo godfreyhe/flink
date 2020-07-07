@@ -96,7 +96,17 @@ public class MultipleInputNodeCreationProcessor implements DAGProcessor {
 
 		List<ExecNodeWrapper> sortedWrappers = topologicalSort(sinkWrappers);
 		maintainMultipleInputNodeInfo(sortedWrappers);
-		return createMultipleInputNodes(sortedWrappers);
+		createMultipleInputNodes(sortedWrappers);
+
+		List<ExecNode<?, ?>> result = new ArrayList<>();
+		for (ExecNode<?, ?> sinkNode : sinkNodes) {
+			for (ExecNodeWrapper sinkWrapper : sinkWrappers) {
+				if (sinkNode.equals(sinkWrapper.info.root)) {
+					result.add(sinkWrapper.info.getMultipleInputNode(isStreaming));
+				}
+			}
+		}
+		return result;
 	}
 
 	private List<ExecNodeWrapper> topologicalSort(List<ExecNodeWrapper> sinkWrappers) {
@@ -146,8 +156,7 @@ public class MultipleInputNodeCreationProcessor implements DAGProcessor {
 		return true;
 	}
 
-	private List<ExecNode<?, ?>> createMultipleInputNodes(List<ExecNodeWrapper> sortedWrappers) {
-		List<ExecNode<?, ?>> result = new ArrayList<>();
+	private void createMultipleInputNodes(List<ExecNodeWrapper> sortedWrappers) {
 		for (int i = sortedWrappers.size() - 1; i >= 0; i--) {
 			ExecNodeWrapper wrapper = sortedWrappers.get(i);
 			for (ExecNodeWrapper inputWrapper : wrapper.inputs) {
@@ -155,11 +164,7 @@ public class MultipleInputNodeCreationProcessor implements DAGProcessor {
 					wrapper.info.addInput(inputWrapper.info.getMultipleInputNode(isStreaming));
 				}
 			}
-			if (wrapper.outputs.isEmpty()) {
-				result.add(wrapper.info.getMultipleInputNode(isStreaming));
-			}
 		}
-		return result;
 	}
 
 	private boolean sameMultipleInputNode(ExecNodeWrapper a, ExecNodeWrapper b) {
