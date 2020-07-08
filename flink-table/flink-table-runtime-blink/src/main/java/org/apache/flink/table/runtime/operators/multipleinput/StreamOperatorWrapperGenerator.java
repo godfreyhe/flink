@@ -104,7 +104,7 @@ public class StreamOperatorWrapperGenerator {
 	}
 
 	public void generate() {
-		tailOperatorWrapper = visit(tailTransform, null);
+		tailOperatorWrapper = visit(tailTransform);
 		checkState(orderedInputTransforms.size() == inputTransforms.size());
 		checkState(orderedInputTransforms.size() == inputSpecs.size());
 	}
@@ -146,13 +146,7 @@ public class StreamOperatorWrapperGenerator {
 	}
 
 	@SuppressWarnings("unchecked")
-	private StreamOperatorWrapper<?> visit(
-			Transformation<?> transform,
-			StreamOperatorWrapper<?> outputWrapper) {
-		if (visitedTransforms.containsKey(transform)) {
-			return visitedTransforms.get(transform);
-		}
-
+	private StreamOperatorWrapper<?> visit(Transformation<?> transform) {
 		if (minResources == null) {
 			parallelism = transform.getParallelism();
 			maxParallelism = transform.getMaxParallelism();
@@ -169,21 +163,28 @@ public class StreamOperatorWrapperGenerator {
 		}
 
 		final StreamOperatorWrapper<?> wrapper;
+		if (visitedTransforms.containsKey(transform)) {
+			wrapper = visitedTransforms.get(transform);
+		} else {
+			wrapper = visitTransformation(transform);
+			visitedTransforms.put(transform, wrapper);
+		}
+		return wrapper;
+	}
+
+	private StreamOperatorWrapper<?> visitTransformation(Transformation<?> transform) {
 		if (transform instanceof OneInputTransformation) {
-			wrapper = visitOneInputTransformation((OneInputTransformation) transform, outputWrapper);
+			return visitOneInputTransformation((OneInputTransformation) transform);
 		} else if (transform instanceof TwoInputTransformation) {
-			wrapper = visitTwoInputTransformation((TwoInputTransformation) transform, outputWrapper);
+			return visitTwoInputTransformation((TwoInputTransformation) transform);
 		} else {
 			// TODO supports more transformation, e.g. UnionTransformation
 			throw new RuntimeException("Unsupported Transformation: " + transform);
 		}
-		visitedTransforms.put(transform, wrapper);
-		return wrapper;
 	}
 
 	private StreamOperatorWrapper<?> visitOneInputTransformation(
-			OneInputTransformation<RowData, RowData> transform,
-			StreamOperatorWrapper<?> outputWrapper) {
+			OneInputTransformation<RowData, RowData> transform) {
 		Transformation<?> input = transform.getInput();
 
 		StreamOperatorWrapper<?> wrapper = new StreamOperatorWrapper<>(
@@ -193,39 +194,30 @@ public class StreamOperatorWrapperGenerator {
 				transform.getOutputType()
 		);
 
-		if (outputWrapper != null) {
-			wrapper.addOutput(outputWrapper);
-		}
-
 		int inputIdx = inputTransforms.indexOf(input);
 		if (inputIdx >= 0) {
 			orderedInputTransforms.add(input);
 			inputSpecs.add(createInputSpec(readOrders[inputIdx], wrapper, 1));
 			headOperatorWrappers.add(wrapper);
 		} else {
-			StreamOperatorWrapper<?> inputWrapper = visit(input, wrapper);
+			StreamOperatorWrapper<?> inputWrapper = visit(input);
 			wrapper.addInput(inputWrapper, 1);
 		}
 		return wrapper;
 	}
 
 	private StreamOperatorWrapper<?> visitTwoInputTransformation(
-			TwoInputTransformation<RowData, RowData, RowData> transform,
-			StreamOperatorWrapper<?> outputWrapper) {
+			TwoInputTransformation<RowData, RowData, RowData> transform) {
 		Transformation<?> input1 = transform.getInput1();
 		Transformation<?> input2 = transform.getInput2();
 		int inputIdx1 = inputTransforms.indexOf(input1);
 		int inputIdx2 = inputTransforms.indexOf(input2);
 
-		StreamOperatorWrapper<?> wrapper = new StreamOperatorWrapper(
+		StreamOperatorWrapper<?> wrapper = new StreamOperatorWrapper<>(
 				transform.getOperatorFactory(),
 				transform.getName(),
 				Arrays.asList(transform.getInputType1(), transform.getInputType2()),
 				transform.getOutputType());
-
-		if (outputWrapper != null) {
-			wrapper.addOutput(outputWrapper);
-		}
 
 		if (inputIdx1 >= 0 && inputIdx2 >= 0) {
 			orderedInputTransforms.add(input1);
@@ -234,21 +226,21 @@ public class StreamOperatorWrapperGenerator {
 			inputSpecs.add(createInputSpec(readOrders[inputIdx2], wrapper, 2));
 			headOperatorWrappers.add(wrapper);
 		} else if (inputIdx1 >= 0) {
-			StreamOperatorWrapper<?> inputWrapper = visit(input2, wrapper);
+			StreamOperatorWrapper<?> inputWrapper = visit(input2);
 			wrapper.addInput(inputWrapper, 2);
 			orderedInputTransforms.add(input1);
 			inputSpecs.add(createInputSpec(readOrders[inputIdx1], wrapper, 1));
 			headOperatorWrappers.add(wrapper);
 		} else if (inputIdx2 >= 0) {
-			StreamOperatorWrapper<?> inputWrapper = visit(input1, wrapper);
+			StreamOperatorWrapper<?> inputWrapper = visit(input1);
 			wrapper.addInput(inputWrapper, 1);
 			orderedInputTransforms.add(input2);
 			inputSpecs.add(createInputSpec(readOrders[inputIdx2], wrapper, 2));
 			headOperatorWrappers.add(wrapper);
 		} else {
-			StreamOperatorWrapper<?> inputWrapper1 = visit(input1, wrapper);
+			StreamOperatorWrapper<?> inputWrapper1 = visit(input1);
 			wrapper.addInput(inputWrapper1, 1);
-			StreamOperatorWrapper<?> inputWrapper2 = visit(input2, wrapper);
+			StreamOperatorWrapper<?> inputWrapper2 = visit(input2);
 			wrapper.addInput(inputWrapper2, 2);
 		}
 		return wrapper;

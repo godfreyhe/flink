@@ -36,6 +36,8 @@ import org.apache.flink.table.runtime.operators.multipleinput.input.FirstInputOf
 import org.apache.flink.table.runtime.operators.multipleinput.input.InputSpec;
 import org.apache.flink.table.runtime.operators.multipleinput.input.OneInput;
 import org.apache.flink.table.runtime.operators.multipleinput.input.SecondInputOfTwoInput;
+import org.apache.flink.table.runtime.operators.multipleinput.output.BroadcastingOutput;
+import org.apache.flink.table.runtime.operators.multipleinput.output.CopyingBroadcastingOutput;
 import org.apache.flink.table.runtime.operators.multipleinput.output.CopyingFirstInputOfTwoInputStreamOperatorOutput;
 import org.apache.flink.table.runtime.operators.multipleinput.output.CopyingOneInputStreamOperatorOutput;
 import org.apache.flink.table.runtime.operators.multipleinput.output.CopyingSecondInputOfTwoInputStreamOperatorOutput;
@@ -44,7 +46,6 @@ import org.apache.flink.table.runtime.operators.multipleinput.output.OneInputStr
 import org.apache.flink.table.runtime.operators.multipleinput.output.SecondInputOfTwoInputStreamOperatorOutput;
 
 import java.util.ArrayDeque;
-import java.util.Collections;
 import java.util.Deque;
 import java.util.IdentityHashMap;
 import java.util.Iterator;
@@ -52,7 +53,6 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.apache.flink.util.Preconditions.checkArgument;
@@ -81,7 +81,7 @@ public abstract class MultipleInputStreamOperatorBase
 	/**
 	 * all operator as topological ordering in this multiple input operator.
 	 */
-	protected final Deque<StreamOperatorWrapper<?>> allOperators;
+	protected final Deque<StreamOperatorWrapper<?>> topologicalOrderingOperators;
 
 	public MultipleInputStreamOperatorBase(
 			StreamOperatorParameters<RowData> parameters,
@@ -93,7 +93,7 @@ public abstract class MultipleInputStreamOperatorBase
 		this.headOperatorWrappers = headOperatorWrappers;
 		this.tailOperatorWrapper = tailOperatorWrapper;
 		// get all operator list as topological ordering
-		this.allOperators = getAllOperatorsAsTopologicalOrdering();
+		this.topologicalOrderingOperators = getAllOperatorsAsTopologicalOrdering();
 		// create all operators by corresponding operator factory
 		createAllOperators(parameters);
 		this.inputSpecMap = inputSpecs.stream().collect(Collectors.toMap(InputSpec::getMultipleInputId, s -> s));
@@ -131,7 +131,7 @@ public abstract class MultipleInputStreamOperatorBase
 	@Override
 	public void open() throws Exception {
 		super.open();
-		final Iterator<StreamOperatorWrapper<?>> it = allOperators.descendingIterator();
+		final Iterator<StreamOperatorWrapper<?>> it = topologicalOrderingOperators.descendingIterator();
 		while (it.hasNext()) {
 			StreamOperator<?> operator = it.next().getStreamOperator();
 			operator.open();
@@ -146,7 +146,7 @@ public abstract class MultipleInputStreamOperatorBase
 	@Override
 	public void close() throws Exception {
 		super.close();
-		for (StreamOperatorWrapper<?> wrapper : allOperators) {
+		for (StreamOperatorWrapper<?> wrapper : topologicalOrderingOperators) {
 			wrapper.close();
 		}
 	}
@@ -159,7 +159,7 @@ public abstract class MultipleInputStreamOperatorBase
 	@Override
 	public void dispose() throws Exception {
 		super.dispose();
-		for (StreamOperatorWrapper<?> wrapper : allOperators) {
+		for (StreamOperatorWrapper<?> wrapper : topologicalOrderingOperators) {
 			StreamOperator<?> operator = wrapper.getStreamOperator();
 			operator.dispose();
 		}
@@ -184,7 +184,7 @@ public abstract class MultipleInputStreamOperatorBase
 			StreamOperatorWrapper<?> wrapper = toVisitOperators.poll();
 			allOperators.add(wrapper);
 
-			for (StreamOperatorWrapper<?> output : wrapper.getOutputs()) {
+			for (StreamOperatorWrapper<?> output : wrapper.getOutputWrappers()) {
 				int inputCountRemaining = operatorToInputCount.get(output) - 1;
 				operatorToInputCount.put(output, inputCountRemaining);
 				if (inputCountRemaining == 0) {
@@ -203,7 +203,7 @@ public abstract class MultipleInputStreamOperatorBase
 
 		while (!toVisitOperators.isEmpty()) {
 			StreamOperatorWrapper<?> wrapper = toVisitOperators.poll();
-			List<StreamOperatorWrapper<?>> inputs = wrapper.getInputs();
+			List<StreamOperatorWrapper<?>> inputs = wrapper.getInputWrappers();
 			operatorToInputCount.put(wrapper, inputs.size());
 			toVisitOperators.addAll(inputs);
 		}
@@ -215,34 +215,47 @@ public abstract class MultipleInputStreamOperatorBase
 	 * Create all sub-operators by corresponding operator factory in a multiple input operator from <b>tail to head</b>.
 	 */
 	private void createAllOperators(StreamOperatorParameters<RowData> parameters) {
-		final Set<StreamOperatorWrapper<?>> opInitedWrappers = Collections.newSetFromMap(new IdentityHashMap<>());
-		final StreamOperatorParameters<RowData> newParameters = createParameters(
-				parameters,
-				output,
-				tailOperatorWrapper.getAllInputTypes(),
-				tailOperatorWrapper.getOutputType());
-		createOperator(newParameters, tailOperatorWrapper, opInitedWrappers);
-	}
+		final boolean isObjectReuseEnabled = parameters.getContainingTask().getExecutionConfig().isObjectReuseEnabled();
+		final ExecutionConfig executionConfig = parameters.getContainingTask().getExecutionConfig();
+		final Iterator<StreamOperatorWrapper<?>> it = topologicalOrderingOperators.descendingIterator();
 
-	private void createOperator(
-			StreamOperatorParameters<RowData> parameters,
-			StreamOperatorWrapper<?> wrapper,
-			Set<StreamOperatorWrapper<?>> opInitedWrappers) {
-		if (!opInitedWrappers.contains(wrapper)) {
-			wrapper.createOperator(parameters);
-			opInitedWrappers.add(wrapper);
-		}
-
-		StreamOperator<RowData> outputOperator = wrapper.getStreamOperator();
-		for (StreamOperatorWrapper<?> input : wrapper.getInputs()) {
-			final int inputId = input.getInputId(wrapper);
-			final Output<StreamRecord<RowData>> output = createOutput(parameters, outputOperator, inputId);
+		while (it.hasNext()) {
+			final StreamOperatorWrapper<?> wrapper = it.next();
+			final Output<StreamRecord<RowData>> output;
+			if (wrapper == this.tailOperatorWrapper) {
+				output = this.output;
+			} else {
+				final int numberOfOutputs = wrapper.getOutputEdges().size();
+				final Output<StreamRecord<RowData>>[] outputs = new Output[numberOfOutputs];
+				for (int i = 0; i < numberOfOutputs; ++i) {
+					StreamOperatorWrapper.Edge edge = wrapper.getOutputEdges().get(i);
+					int inputId = edge.getInputId();
+					StreamOperator<RowData> outputOperator = edge.getTarget().getStreamOperator();
+					if (isObjectReuseEnabled) {
+						outputs[i] = createOutput(outputOperator, inputId);
+					} else {
+						// the source's output type info is equal to the target's type info for the corresponding index
+						TypeSerializer<RowData> serializer =
+								(TypeSerializer<RowData>) edge.getSource().getOutputType().createSerializer(executionConfig);
+						outputs[i] = createCopyingOutput(serializer, outputOperator, inputId);
+					}
+				}
+				if (outputs.length == 1) {
+					output = outputs[0];
+				} else {
+					if (isObjectReuseEnabled) {
+						output = new BroadcastingOutput(outputs);
+					} else {
+						output = new CopyingBroadcastingOutput(outputs);
+					}
+				}
+			}
 			final StreamOperatorParameters<RowData> newParameters = createParameters(
 					parameters,
 					output,
-					input.getAllInputTypes(),
-					input.getOutputType());
-			createOperator(newParameters, input, opInitedWrappers);
+					wrapper.getAllInputTypes(),
+					wrapper.getOutputType());
+			wrapper.createOperator(newParameters);
 		}
 	}
 
@@ -253,6 +266,7 @@ public abstract class MultipleInputStreamOperatorBase
 			TypeInformation<?> outputType) {
 		final ExecutionConfig executionConfig = getExecutionConfig();
 
+		// TODO refactor this
 		final StreamConfig streamConfig = new StreamConfig(parameters.getStreamConfig().getConfiguration().clone());
 		streamConfig.setTypeSerializersIn(
 				inputTypes.stream().map(t -> t.createSerializer(executionConfig)).toArray(TypeSerializer[]::new));
@@ -265,17 +279,6 @@ public abstract class MultipleInputStreamOperatorBase
 				parameters::getProcessingTimeService,
 				parameters.getOperatorEventDispatcher()
 		);
-	}
-
-	private Output<StreamRecord<RowData>> createOutput(
-			StreamOperatorParameters<RowData> parameters,
-			StreamOperator<RowData> outputOperator,
-			int inputId) {
-		if (parameters.getContainingTask().getExecutionConfig().isObjectReuseEnabled()) {
-			return createOutput(outputOperator, inputId);
-		} else {
-			return createCopyingOutput(parameters, outputOperator, inputId);
-		}
 	}
 
 	private Output<StreamRecord<RowData>> createOutput(StreamOperator<RowData> outputOperator, int inputId) {
@@ -297,13 +300,9 @@ public abstract class MultipleInputStreamOperatorBase
 	}
 
 	private Output<StreamRecord<RowData>> createCopyingOutput(
-			StreamOperatorParameters<RowData> parameters,
+			TypeSerializer<RowData> serializer,
 			StreamOperator<RowData> outputOperator,
 			int inputId) {
-		final ClassLoader userCodeClassloader = parameters.getContainingTask().getUserCodeClassLoader();
-		final TypeSerializer<RowData> serializer =
-				parameters.getStreamConfig().getTypeSerializerIn(inputId - 1, userCodeClassloader);
-
 		if (outputOperator instanceof OneInputStreamOperator) {
 			final OneInputStreamOperator<RowData, RowData> oneInputOp =
 					(OneInputStreamOperator<RowData, RowData>) outputOperator;
