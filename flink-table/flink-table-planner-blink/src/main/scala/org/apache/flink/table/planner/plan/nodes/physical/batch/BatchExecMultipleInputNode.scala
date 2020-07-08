@@ -102,10 +102,8 @@ class BatchExecMultipleInputNode(
 
     // set resources
     multipleInputTransform.setResources(generator.getMinResources, generator.getPreferredResources)
-    // TODO
-//    val memoryKB = generator.getManagedMemoryWeight
-//    ExecNode.setManagedMemoryWeight(multipleInputTransform, memoryKB * 1024)
-    ExecNode.setManagedMemoryWeight(multipleInputTransform, MemorySize.parseBytes("128m"))
+    val memoryKB = generator.getManagedMemoryWeight
+    ExecNode.setManagedMemoryWeight(multipleInputTransform, memoryKB * 1024)
 
     multipleInputTransform
   }
