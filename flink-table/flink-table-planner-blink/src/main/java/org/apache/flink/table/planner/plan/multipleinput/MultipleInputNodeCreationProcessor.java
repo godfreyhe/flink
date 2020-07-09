@@ -134,6 +134,22 @@ public class MultipleInputNodeCreationProcessor implements DAGProcessor {
 				wrapper.outputs.get(0).addMultipleInputNodeMember(wrapper);
 			}
 		}
+
+		for (int i = sortedWrappers.size() - 1; i >= 0; i--) {
+			ExecNodeWrapper wrapper = sortedWrappers.get(i);
+			boolean differentMultipleInputNodeWithInput =
+				wrapper.inputs.size() == 1 && !sameMultipleInputNode(wrapper, wrapper.inputs.get(0));
+			boolean sameMultipleInputNodeWithOutput =
+				wrapper.outputs.size() == 1 && sameMultipleInputNode(wrapper, wrapper.outputs.get(0));
+			if (differentMultipleInputNodeWithInput && sameMultipleInputNodeWithOutput) {
+				boolean inputIsExchange =
+					wrapper.inputs.get(0).execNode instanceof BatchExecExchange ||
+						wrapper.inputs.get(0).execNode instanceof StreamExecExchange;
+				if (!inputIsExchange) {
+					wrapper.outputs.get(0).removeMultipleInputNodeTail(wrapper);
+				}
+			}
+		}
 	}
 
 	private boolean canBeMultipleInputMember(ExecNodeWrapper wrapper) {
@@ -202,6 +218,15 @@ public class MultipleInputNodeCreationProcessor implements DAGProcessor {
 				"This MultipleInputNodeInfo cannot add member. This is a bug.");
 			member.info = info;
 			info.memberCount++;
+		}
+
+		private void removeMultipleInputNodeTail(ExecNodeWrapper tail) {
+			Preconditions.checkArgument(
+				tail.inputs.size() == 1,
+				"Tail of multiple input node must have exactly 1 input. This is a bug.");
+
+			tail.info = new MultipleInputNodeInfo(tail.execNode);
+			info.memberCount--;
 		}
 	}
 
