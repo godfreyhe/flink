@@ -38,7 +38,8 @@ class RelTreeWriterImpl(
     withIdPrefix: Boolean = false,
     withChangelogTraits: Boolean = false,
     withRowType: Boolean = false,
-    withTreeStyle: Boolean = true)
+    withTreeStyle: Boolean = true,
+    borders: Array[RelNode] = Array())
   extends RelWriterImpl(pw, explainLevel, withIdPrefix) {
 
   var lastChildren: Seq[Boolean] = Nil
@@ -66,6 +67,11 @@ class RelTreeWriterImpl(
 
     if (withIdPrefix) {
       s.append(rel.getId).append(":")
+    }
+
+    val borderIndex = borders.indexOf(rel)
+    if (borderIndex >= 0) {
+      s.append("[#").append(borderIndex + 1).append("] ")
     }
 
     rel.getRelTypeName match {
@@ -110,6 +116,10 @@ class RelTreeWriterImpl(
         .append(mq.getCumulativeCost(rel))
     }
     pw.println(s)
+    if (borderIndex >= 0) {
+      return
+    }
+
     if (inputs.length > 1) inputs.toSeq.init.foreach { rel =>
       if (withTreeStyle) {
         depth = depth + 1

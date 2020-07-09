@@ -66,7 +66,8 @@ object FlinkRelOptUtil {
       detailLevel: SqlExplainLevel = SqlExplainLevel.EXPPLAN_ATTRIBUTES,
       withIdPrefix: Boolean = false,
       withChangelogTraits: Boolean = false,
-      withRowType: Boolean = false): String = {
+      withRowType: Boolean = false,
+      borders: Array[RelNode] = Array()): String = {
     if (rel == null) {
       return null
     }
@@ -77,7 +78,8 @@ object FlinkRelOptUtil {
       withIdPrefix,
       withChangelogTraits,
       withRowType,
-      withTreeStyle = true)
+      withTreeStyle = true,
+      borders = borders)
     rel.explain(planWriter)
     sw.toString
   }

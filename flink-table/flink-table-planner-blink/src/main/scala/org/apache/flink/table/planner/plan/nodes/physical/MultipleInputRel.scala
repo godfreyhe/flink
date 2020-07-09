@@ -19,12 +19,13 @@
 package org.apache.flink.table.planner.plan.nodes.physical
 
 import org.apache.flink.table.planner.plan.nodes.FlinkRelNode
-
 import org.apache.calcite.plan.{RelOptCluster, RelTraitSet}
 import org.apache.calcite.rel.`type`.RelDataType
 import org.apache.calcite.rel.{AbstractRelNode, RelNode, RelWriter}
-
 import java.util
+
+import org.apache.flink.table.planner.plan.utils.FlinkRelOptUtil
+
 import scala.collection.JavaConversions._
 
 /**
@@ -49,43 +50,6 @@ class MultipleInputRel(
         pw.input("input" + index, rel)
     }
     pw.item("output", outputRel)
-    pw.item("members", getMemberDescriptions)
-  }
-
-  private[flink] def getMemberDescriptions: String = {
-    def dfs(rel: RelNode, visited: util.Map[RelNode, Integer]): Unit = {
-      if (visited.containsKey(rel) || inputRels.contains(rel)) {
-        return
-      }
-      val memberId = visited.size() + 1
-      visited.put(rel, memberId)
-
-      rel.getInputs.foreach(inputRel => dfs(inputRel, visited))
-    }
-
-    val visited = new util.HashMap[RelNode, Integer]()
-    dfs(outputRel, visited)
-
-    val result = new Array[String](visited.size())
-    visited.entrySet().foreach(entry => {
-      val rel = entry.getKey
-      val id = entry.getValue
-      val children = rel.getInputs.map(inputRel => {
-        val childIdx = visited.get(inputRel)
-        if (childIdx == null) {
-          "input #" + (inputRels.indexOf(inputRel) + 1).toString
-        } else {
-          childIdx
-        }
-      }).mkString(", ")
-      result(id - 1) = "member_id = " + id + ": " +
-        rel.asInstanceOf[FlinkRelNode].getRelDetailedDescription + (
-        if (children.length > 0) {
-          ", children = " + children
-        } else {
-          ""
-        })
-    })
-    result.mkString("; ")
+    pw.item("members", FlinkRelOptUtil.toString(outputRel, borders = inputRels).replace("\n", "\\n"))
   }
 }
