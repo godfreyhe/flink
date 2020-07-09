@@ -170,6 +170,7 @@ class DeadlockBreakupProcessor extends DAGProcessor {
             // TODO create a cloned BatchExecExchange for PIPELINE output
             if (!hasBarrier) {
               e.setRequiredShuffleMode(ShuffleMode.BATCH)
+              e.setTag("deadlock_breakup")
             }
           case _ =>
             val probeRel = probeNode.asInstanceOf[RelNode]
@@ -178,7 +179,8 @@ class DeadlockBreakupProcessor extends DAGProcessor {
               probeRel.getCluster,
               traitSet,
               probeRel,
-              distribution)
+              distribution,
+              "deadlock_breakup")
             if (hasBarrier) {
               e.setRequiredShuffleMode(ShuffleMode.PIPELINED)
             } else {

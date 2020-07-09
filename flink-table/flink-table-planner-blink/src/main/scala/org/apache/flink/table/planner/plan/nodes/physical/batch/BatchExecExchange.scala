@@ -55,7 +55,8 @@ class BatchExecExchange(
     cluster: RelOptCluster,
     traitSet: RelTraitSet,
     inputRel: RelNode,
-    relDistribution: RelDistribution)
+    relDistribution: RelDistribution,
+    var tag: String = null)
   extends CommonPhysicalExchange(cluster, traitSet, inputRel, relDistribution)
   with BatchPhysicalRel
   with BatchExecNode[RowData] {
@@ -73,13 +74,15 @@ class BatchExecExchange(
       traitSet: RelTraitSet,
       newInput: RelNode,
       newDistribution: RelDistribution): BatchExecExchange = {
-    new BatchExecExchange(cluster, traitSet, newInput, relDistribution)
+    new BatchExecExchange(cluster, traitSet, newInput, relDistribution, tag)
   }
 
   override def explainTerms(pw: RelWriter): RelWriter = {
     super.explainTerms(pw)
-      .itemIf("shuffle_mode", requiredShuffleMode.orNull,
-        requiredShuffleMode.contains(ShuffleMode.BATCH))
+      .item(
+        "shuffle_mode",
+        getShuffleMode(FlinkRelOptUtil.getTableConfigFromContext(this).getConfiguration))
+      .itemIf("tag", tag, tag != null)
   }
 
   //~ ExecNode methods -----------------------------------------------------------
@@ -87,6 +90,10 @@ class BatchExecExchange(
   def setRequiredShuffleMode(shuffleMode: ShuffleMode): Unit = {
     require(shuffleMode != null)
     requiredShuffleMode = Some(shuffleMode)
+  }
+
+  def setTag(newTag: String): Unit = {
+    tag = newTag
   }
 
   private[flink] def getShuffleMode(tableConf: Configuration): ShuffleMode = {

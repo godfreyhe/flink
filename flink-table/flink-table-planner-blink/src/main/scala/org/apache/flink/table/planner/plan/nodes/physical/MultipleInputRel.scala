@@ -50,6 +50,8 @@ class MultipleInputRel(
         pw.input("input" + index, rel)
     }
     pw.item("output", outputRel)
-    pw.item("members", FlinkRelOptUtil.toString(outputRel, borders = inputRels).replace("\n", "\\n"))
+    pw.item(
+      "members",
+      "\\n" + FlinkRelOptUtil.toString(outputRel, borders = inputRels).replace("\n", "\\n"))
   }
 }
