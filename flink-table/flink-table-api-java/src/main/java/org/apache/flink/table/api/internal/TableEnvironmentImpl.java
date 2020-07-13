@@ -700,7 +700,8 @@ public class TableEnvironmentImpl implements TableEnvironmentInternal {
 	public TableResult executeInternal(QueryOperation operation) {
 		SelectSinkOperation sinkOperation = new SelectSinkOperation(operation);
 		List<Transformation<?>> transformations = translate(Collections.singletonList(sinkOperation));
-		Pipeline pipeline = execEnv.createPipeline(transformations, tableConfig, "collect");
+		String jobName = getConfig().getConfiguration().getString("__job_name__", "collect");
+		Pipeline pipeline = execEnv.createPipeline(transformations, tableConfig, jobName);
 		try {
 			JobClient jobClient = execEnv.executeAsync(pipeline);
 			SelectResultProvider resultProvider = sinkOperation.getSelectResultProvider();
