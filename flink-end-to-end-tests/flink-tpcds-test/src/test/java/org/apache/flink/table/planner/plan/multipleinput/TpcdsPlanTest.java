@@ -22,17 +22,11 @@ import org.apache.flink.table.api.TableConfig;
 import org.apache.flink.table.api.TableEnvironment;
 import org.apache.flink.table.api.config.ExecutionConfigOptions;
 import org.apache.flink.table.api.config.OptimizerConfigOptions;
-import org.apache.flink.table.catalog.ConnectorCatalogTable;
-import org.apache.flink.table.catalog.ObjectPath;
 import org.apache.flink.table.catalog.hive.HiveCatalog;
-import org.apache.flink.table.planner.plan.multipleinput.schema.TpcdsSchema;
-import org.apache.flink.table.planner.plan.multipleinput.schema.TpcdsSchemaProvider;
-import org.apache.flink.table.planner.plan.multipleinput.stats.TpcdsStatsProvider;
 import org.apache.flink.table.planner.utils.BatchTableTestUtil;
 import org.apache.flink.table.planner.utils.TableTestBase;
-import org.apache.flink.table.sources.CsvTableSource;
-import org.apache.flink.table.types.utils.TypeConversions;
 import org.apache.flink.util.FileUtils;
+
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -75,7 +69,9 @@ public class TpcdsPlanTest extends TableTestBase {
 		tEnv.getConfig().getConfiguration()
 			.setBoolean(OptimizerConfigOptions.TABLE_OPTIMIZER_JOIN_REORDER_ENABLED, true);
 		tEnv.getConfig().getConfiguration()
-			.setLong(OptimizerConfigOptions.TABLE_OPTIMIZER_BROADCAST_JOIN_THRESHOLD, 10485760);
+				.set(ExecutionConfigOptions.TABLE_EXEC_SHUFFLE_MODE, "ALL_EDGES_BLOCKING");
+		tEnv.getConfig().getConfiguration()
+				.setBoolean(OptimizerConfigOptions.TABLE_OPTIMIZER_MULTIPLE_INPUT_ENABLED, true);
 
 		//register TPC-DS tables
 		/*TPCDS_TABLES.forEach(table -> {
@@ -110,8 +106,6 @@ public class TpcdsPlanTest extends TableTestBase {
 
 	@Test
 	public void testPlan() throws Exception {
-		util.tableConfig().getConfiguration().setBoolean(OptimizerConfigOptions.TABLE_OPTIMIZER_MULTIPLE_INPUT_ENABLED, false);
-
 		File sqlFile = new File(TpcdsPlanTest.class.getClassLoader().getResource("org/apache/flink/table/planner/plan/multipleinput/query/query" + caseName + ".sql").getFile());
 		String sql = FileUtils.readFileUtf8(sqlFile);
 		util.verifyPlan(sql);
