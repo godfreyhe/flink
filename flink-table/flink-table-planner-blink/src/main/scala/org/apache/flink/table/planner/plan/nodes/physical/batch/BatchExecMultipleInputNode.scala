@@ -19,9 +19,10 @@
 package org.apache.flink.table.planner.plan.nodes.physical.batch
 
 import org.apache.flink.api.dag.Transformation
-import org.apache.flink.configuration.MemorySize
 import org.apache.flink.runtime.operators.DamBehavior
 import org.apache.flink.streaming.api.transformations.MultipleInputTransformation
+import org.apache.flink.table.api.TableConfig
+import org.apache.flink.table.api.config.ExecutionConfigOptions
 import org.apache.flink.table.data.RowData
 import org.apache.flink.table.planner.calcite.FlinkTypeFactory
 import org.apache.flink.table.planner.delegation.BatchPlanner
@@ -91,7 +92,7 @@ class BatchExecMultipleInputNode(
         generator.getHeadOperatorWrappers,
         generator.getTailOperatorWrapper),
       outputType,
-      generator.getParallelism)
+      getParallelism(generator.getParallelism, planner.getTableConfig))
 
     // add inputs as the order of input specs
     generator.getOrderedInputTransforms.foreach(input => multipleInputTransform.addInput(input))
@@ -103,9 +104,36 @@ class BatchExecMultipleInputNode(
     // set resources
     multipleInputTransform.setResources(generator.getMinResources, generator.getPreferredResources)
     val memoryKB = generator.getManagedMemoryWeight
-    ExecNode.setManagedMemoryWeight(multipleInputTransform, memoryKB * 1024)
+    val memoryFactor = planner.getTableConfig.getConfiguration.getDouble(
+      ExecutionConfigOptions.TABLE_EXEC_RESOURCE_MULTIPLE_INPUT_MEMORY_FACTOR)
+    ExecNode.setManagedMemoryWeight(multipleInputTransform, (memoryKB * memoryFactor * 1024).toInt)
 
     multipleInputTransform
+  }
+
+  private def getParallelism(parallelism: Int, tableConfig: TableConfig): Int = {
+    val p = if (parallelism > 0) {
+      parallelism
+    } else {
+      tableConfig.getConfiguration.getInteger(
+        ExecutionConfigOptions.TABLE_EXEC_RESOURCE_DEFAULT_PARALLELISM)
+    }
+    val numOfOperators = getNumberOfOperators(outputRel)
+    val factor = tableConfig.getConfiguration.getDouble(
+      ExecutionConfigOptions.TABLE_EXEC_RESOURCE_MULTIPLE_INPUT_PARALLELISM_FACTOR)
+    val r = p * numOfOperators * factor
+    if (r > 0) r.toInt else -1
+  }
+
+  private def getNumberOfOperators(rel: RelNode): Int = {
+    if (inputRels.contains(rel)) {
+      return 0
+    }
+   val num = rel match  {
+      case _: BatchExecGroupAggregateBase | _: BatchExecJoinBase => 1
+      case _ => 0
+    }
+    rel.getInputs.map(getNumberOfOperators).sum + num
   }
 
 }

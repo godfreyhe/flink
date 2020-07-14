@@ -142,6 +142,18 @@ public class ExecutionConfigOptions {
 					"default parallelism is set, then it will fallback to use the parallelism " +
 					"of StreamExecutionEnvironment.");
 
+	@Documentation.TableOption(execMode = Documentation.ExecMode.BATCH_STREAMING)
+	public static final ConfigOption<Double> TABLE_EXEC_RESOURCE_MULTIPLE_INPUT_PARALLELISM_FACTOR =
+		key("table.exec.resource.multiple-input-parallelism-factor")
+			.defaultValue(1.0)
+			.withDescription("");
+
+	@Documentation.TableOption(execMode = Documentation.ExecMode.BATCH_STREAMING)
+	public static final ConfigOption<Double> TABLE_EXEC_RESOURCE_MULTIPLE_INPUT_MEMORY_FACTOR =
+		key("table.exec.resource.multiple-input-memory-factor")
+			.defaultValue(1.0)
+			.withDescription("");
+
 	@Documentation.ExcludeFromDocumentation("Beginning from Flink 1.10, this is interpreted as a weight hint " +
 		"instead of an absolute memory requirement. Users should not need to change these carefully tuned weight hints.")
 	public static final ConfigOption<String> TABLE_EXEC_RESOURCE_EXTERNAL_BUFFER_MEMORY =
