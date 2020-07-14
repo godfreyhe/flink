@@ -34,6 +34,8 @@ class DeadlockBreakupTest extends TableTestBase {
     util.addTableSource[(Int, Long, String)]("x", 'a, 'b, 'c)
     util.addTableSource[(Int, Long, String)]("y", 'd, 'e, 'f)
     util.addDataStream[(Int, Long, String)]("t", 'a, 'b, 'c)
+    util.tableEnv.getConfig.getConfiguration.setBoolean(
+      OptimizerConfigOptions.TABLE_OPTIMIZER_MULTIPLE_INPUT_ENABLED, true)
   }
 
   @Test
@@ -135,38 +137,6 @@ class DeadlockBreakupTest extends TableTestBase {
         | RANGE BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS a, b, c FROM r1)
         |
         |SELECT * FROM r2, r3 WHERE r2.c = r3.c
-      """.stripMargin
-    util.verifyPlan(sqlQuery)
-  }
-
-  @Test
-  def testSubplanReuse_AddExchangeAsPipeline_HashJoin(): Unit = {
-    util.tableEnv.getConfig.getConfiguration.setBoolean(
-      OptimizerConfigOptions.TABLE_OPTIMIZER_REUSE_SUB_PLAN_ENABLED, true)
-    util.tableEnv.getConfig.getConfiguration.setBoolean(
-      OptimizerConfigOptions.TABLE_OPTIMIZER_REUSE_SOURCE_ENABLED, true)
-    util.tableEnv.getConfig.getConfiguration.setString(
-      ExecutionConfigOptions.TABLE_EXEC_DISABLED_OPERATORS, "NestedLoopJoin,SortMergeJoin")
-    val sqlQuery =
-      """
-        |WITH r AS (SELECT a, b FROM x)
-        |SELECT * FROM (SELECT SUM(a) AS a, b FROM r GROUP BY b) r1, (SELECT COUNT(a) AS a, b FROM r GROUP BY b) r2 WHERE r1.b = r2.b
-      """.stripMargin
-    util.verifyPlan(sqlQuery)
-  }
-
-  @Test
-  def testSubplanReuse_AddExchangeAsPipeline_NestedLoopJoin(): Unit = {
-    util.tableEnv.getConfig.getConfiguration.setBoolean(
-      OptimizerConfigOptions.TABLE_OPTIMIZER_REUSE_SUB_PLAN_ENABLED, true)
-    util.tableEnv.getConfig.getConfiguration.setBoolean(
-      OptimizerConfigOptions.TABLE_OPTIMIZER_REUSE_SOURCE_ENABLED, true)
-    util.tableEnv.getConfig.getConfiguration.setString(
-      ExecutionConfigOptions.TABLE_EXEC_DISABLED_OPERATORS, "HashJoin,SortMergeJoin")
-    val sqlQuery =
-      """
-        |WITH r AS (SELECT a, b FROM x)
-        |SELECT * FROM (SELECT SUM(a) AS a, b FROM r GROUP BY b) r1, (SELECT COUNT(a) AS a, b FROM r GROUP BY b) r2 WHERE r1.b = r2.b
       """.stripMargin
     util.verifyPlan(sqlQuery)
   }

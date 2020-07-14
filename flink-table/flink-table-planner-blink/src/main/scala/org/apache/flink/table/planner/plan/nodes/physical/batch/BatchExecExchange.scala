@@ -78,11 +78,10 @@ class BatchExecExchange(
   }
 
   override def explainTerms(pw: RelWriter): RelWriter = {
+    val shuffleMode = getShuffleMode()
     super.explainTerms(pw)
-      .item(
-        "shuffle_mode",
-        getShuffleMode(FlinkRelOptUtil.getTableConfigFromContext(this).getConfiguration))
-      .itemIf("tag", tag, tag != null)
+      .itemIf("shuffle_mode", shuffleMode, shuffleMode == ShuffleMode.BATCH)
+      // .itemIf("tag", tag, tag != null)
   }
 
   //~ ExecNode methods -----------------------------------------------------------
@@ -96,9 +95,12 @@ class BatchExecExchange(
     tag = newTag
   }
 
+  private[flink] def getShuffleMode(): ShuffleMode =
+    getShuffleMode(FlinkRelOptUtil.getTableConfigFromContext(this).getConfiguration)
+
   private[flink] def getShuffleMode(tableConf: Configuration): ShuffleMode = {
     requiredShuffleMode match {
-      case Some(mode) if mode eq ShuffleMode.BATCH => mode
+      case Some(mode) => mode
       case _ =>
         if (tableConf.getString(ExecutionConfigOptions.TABLE_EXEC_SHUFFLE_MODE)
             .equalsIgnoreCase(GlobalDataExchangeMode.ALL_EDGES_BLOCKING.toString)) {

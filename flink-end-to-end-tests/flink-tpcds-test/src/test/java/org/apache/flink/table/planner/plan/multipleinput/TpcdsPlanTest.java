@@ -69,9 +69,9 @@ public class TpcdsPlanTest extends TableTestBase {
 		tEnv.getConfig().getConfiguration()
 			.setBoolean(OptimizerConfigOptions.TABLE_OPTIMIZER_JOIN_REORDER_ENABLED, true);
 		tEnv.getConfig().getConfiguration()
-				.set(ExecutionConfigOptions.TABLE_EXEC_SHUFFLE_MODE, "ALL_EDGES_BLOCKING");
+			.set(ExecutionConfigOptions.TABLE_EXEC_SHUFFLE_MODE, "ALL_EDGES_BLOCKING");
 		tEnv.getConfig().getConfiguration()
-				.setBoolean(OptimizerConfigOptions.TABLE_OPTIMIZER_MULTIPLE_INPUT_ENABLED, true);
+			.setBoolean(OptimizerConfigOptions.TABLE_OPTIMIZER_MULTIPLE_INPUT_ENABLED, true);
 
 		//register TPC-DS tables
 		/*TPCDS_TABLES.forEach(table -> {

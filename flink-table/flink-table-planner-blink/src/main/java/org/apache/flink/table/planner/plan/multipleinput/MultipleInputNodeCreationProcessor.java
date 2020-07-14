@@ -19,13 +19,17 @@
 package org.apache.flink.table.planner.plan.multipleinput;
 
 import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.rel.core.JoinInfo;
+import org.apache.calcite.util.ImmutableIntList;
 import org.apache.flink.annotation.VisibleForTesting;
+import org.apache.flink.streaming.api.transformations.ShuffleMode;
 import org.apache.flink.table.planner.plan.nodes.FlinkRelNode;
 import org.apache.flink.table.planner.plan.nodes.exec.ExecNode;
 import org.apache.flink.table.planner.plan.nodes.physical.batch.BatchExecBoundedStreamScan;
 import org.apache.flink.table.planner.plan.nodes.physical.batch.BatchExecExchange;
 import org.apache.flink.table.planner.plan.nodes.physical.batch.BatchExecHashJoin;
 import org.apache.flink.table.planner.plan.nodes.physical.batch.BatchExecIntermediateTableScan;
+import org.apache.flink.table.planner.plan.nodes.physical.batch.BatchExecJoinBase;
 import org.apache.flink.table.planner.plan.nodes.physical.batch.BatchExecLegacyTableSourceScan;
 import org.apache.flink.table.planner.plan.nodes.physical.batch.BatchExecMultipleInputNode;
 import org.apache.flink.table.planner.plan.nodes.physical.batch.BatchExecNestedLoopJoin;
@@ -44,6 +48,8 @@ import org.apache.flink.table.planner.plan.nodes.physical.stream.StreamExecTempo
 import org.apache.flink.table.planner.plan.nodes.physical.stream.StreamExecUnion;
 import org.apache.flink.table.planner.plan.nodes.process.DAGProcessContext;
 import org.apache.flink.table.planner.plan.nodes.process.DAGProcessor;
+import org.apache.flink.table.planner.plan.reuse.InputOrderCalculator;
+import org.apache.flink.table.planner.plan.trait.FlinkRelDistribution;
 import org.apache.flink.util.Preconditions;
 
 import javax.annotation.Nullable;
@@ -56,7 +62,6 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
-import java.util.Set;
 
 public class MultipleInputNodeCreationProcessor implements DAGProcessor {
 
@@ -90,6 +95,14 @@ public class MultipleInputNodeCreationProcessor implements DAGProcessor {
 
 	@Override
 	public List<ExecNode<?, ?>> process(List<ExecNode<?, ?>> sinkNodes, DAGProcessContext context) {
+		InputOrderCalculator calculator = new InputOrderCalculator(
+			sinkNodes,
+			Collections.emptySet(),
+			node ->
+				node instanceof BatchExecExchange && ((BatchExecExchange) node).getShuffleMode() == ShuffleMode.BATCH,
+			this::resolveConflict);
+		calculator.checkConflict();
+
 		ExecNodeWrapperProducer wrapperProducer = new ExecNodeWrapperProducer();
 		List<ExecNodeWrapper> sinkWrappers = new ArrayList<>();
 		sinkNodes.forEach(sinkNode -> sinkWrappers.add(wrapperProducer.visit(sinkNode)));
@@ -107,6 +120,36 @@ public class MultipleInputNodeCreationProcessor implements DAGProcessor {
 			}
 		}
 		return result;
+	}
+
+	private void resolveConflict(ExecNode<?, ?> node) {
+		Preconditions.checkArgument(
+			node instanceof BatchExecHashJoin || node instanceof BatchExecNestedLoopJoin);
+
+		if (node instanceof BatchExecHashJoin) {
+			BatchExecHashJoin hashJoin = (BatchExecHashJoin) node;
+			JoinInfo joinInfo = hashJoin.getJoinInfo();
+			ImmutableIntList columns = hashJoin.leftIsBuild() ? joinInfo.rightKeys : joinInfo.leftKeys;
+			FlinkRelDistribution distribution = FlinkRelDistribution.hash(columns, true);
+			rewriteJoin(hashJoin, hashJoin.leftIsBuild(), distribution);
+		} else {
+			BatchExecNestedLoopJoin nestedLoopJoin = (BatchExecNestedLoopJoin) node;
+			rewriteJoin(nestedLoopJoin, nestedLoopJoin.leftIsBuild(), FlinkRelDistribution.ANY());
+		}
+	}
+
+	private void rewriteJoin(BatchExecJoinBase join, boolean leftIsBuild, FlinkRelDistribution distribution) {
+		int probeIndex = leftIsBuild ? 1 : 0;
+		RelNode probe = join.getInput(probeIndex);
+
+		BatchExecExchange exchange = new BatchExecExchange(
+			probe.getCluster(),
+			probe.getTraitSet().replace(distribution),
+			probe,
+			distribution,
+			"multiple_input_mark");
+		exchange.setRequiredShuffleMode(ShuffleMode.PIPELINED);
+		join.replaceInputNode(probeIndex, exchange);
 	}
 
 	private List<ExecNodeWrapper> topologicalSort(List<ExecNodeWrapper> sinkWrappers) {
@@ -266,22 +309,22 @@ public class MultipleInputNodeCreationProcessor implements DAGProcessor {
 				return multipleInputNode;
 			}
 
-			RelNode rel = (RelNode) root;
-			RelNode[] inputRels = new RelNode[inputs.size()];
-			for (int i = 0; i < inputs.size(); i++) {
-				inputRels[i] = (RelNode) inputs.get(i);
-			}
-
 			if (isStreaming) {
-				multipleInputNode = createStreamMultipleInputNode(inputRels, rel);
+				multipleInputNode = createStreamMultipleInputNode();
 			} else {
-				multipleInputNode = createBatchMultipleInputNode(inputRels, rel);
+				multipleInputNode = createBatchMultipleInputNode();
 			}
 			System.out.println(((FlinkRelNode) multipleInputNode).getRelDetailedDescription());
 			return multipleInputNode;
 		}
 
-		private StreamExecMultipleInputNode createStreamMultipleInputNode(RelNode[] inputRels, RelNode outputRel) {
+		private StreamExecMultipleInputNode createStreamMultipleInputNode() {
+			RelNode outputRel = (RelNode) root;
+			RelNode[] inputRels = new RelNode[inputs.size()];
+			for (int i = 0; i < inputs.size(); i++) {
+				inputRels[i] = (RelNode) inputs.get(i);
+			}
+
 			return new StreamExecMultipleInputNode(
 				outputRel.getCluster(),
 				outputRel.getTraitSet(),
@@ -289,79 +332,30 @@ public class MultipleInputNodeCreationProcessor implements DAGProcessor {
 				outputRel);
 		}
 
-		private BatchExecMultipleInputNode createBatchMultipleInputNode(RelNode[] inputRels, RelNode outputRel) {
-			InputOrderCalculator inputOrderCalculator = new InputOrderCalculator(inputRels);
+		private BatchExecMultipleInputNode createBatchMultipleInputNode() {
+			InputOrderCalculator calculator = new InputOrderCalculator(
+				Collections.singletonList(root),
+				new HashSet<>(inputs),
+				node -> false,
+				node -> {
+					throw new IllegalStateException("There is still conflict in multiple input node. This is a bug.");
+				});
+			Map<ExecNode<?, ?>, Integer> calculateResult = calculator.calculate();
+
+			RelNode outputRel = (RelNode) root;
+			RelNode[] inputRels = new RelNode[inputs.size()];
+			int[] orders = new int[inputs.size()];
+			for (int i = 0; i < inputs.size(); i++) {
+				inputRels[i] = (RelNode) inputs.get(i);
+				orders[i] = calculateResult.get(inputs.get(i));
+			}
+
 			return new BatchExecMultipleInputNode(
 				outputRel.getCluster(),
 				outputRel.getTraitSet(),
 				inputRels,
 				outputRel,
-				inputOrderCalculator.calculateInputOrder(outputRel));
-		}
-	}
-
-	private static class InputOrderCalculator {
-		private final List<RelNode> inputs;
-		private final Map<RelNode, String> relOrderMap;
-
-		private InputOrderCalculator(RelNode[] inputRels) {
-			this.inputs = Arrays.asList(inputRels);
-			this.relOrderMap = new HashMap<>();
-		}
-
-		private int[] calculateInputOrder(RelNode outputRel) {
-			visit(outputRel, "");
-
-			Set<String> uniqueOrderStrings = new HashSet<>();
-			for (RelNode inputRel : inputs) {
-				uniqueOrderStrings.add(relOrderMap.get(inputRel));
-			}
-			List<String> sortedOrderStrings = new ArrayList<>(uniqueOrderStrings);
-			Collections.sort(sortedOrderStrings);
-
-			int[] result = new int[inputs.size()];
-			for (int i = 0; i < inputs.size(); i++) {
-				result[i] = sortedOrderStrings.indexOf(relOrderMap.get(inputs.get(i)));
-			}
-			return result;
-		}
-
-		private void visit(RelNode rel, String orderString) {
-			if (relOrderMap.containsKey(rel)) {
-				String storedOrder = relOrderMap.get(rel);
-				Preconditions.checkArgument(
-					orderString.equals(storedOrder),
-					"InputOrderCalculator provides two orders for the same rel node. This is a bug.");
-				return;
-			}
-			relOrderMap.put(rel, orderString);
-
-			if (inputs.contains(rel)) {
-				return;
-			}
-
-			char leftOrder;
-			char rightOrder;
-			if (rel instanceof BatchExecHashJoin) {
-				boolean leftIsBuild = ((BatchExecHashJoin) rel).leftIsBuild();
-				leftOrder = leftIsBuild ? 'b' : 'p';
-				rightOrder = leftIsBuild ? 'p' : 'b';
-			} else if (rel instanceof BatchExecNestedLoopJoin) {
-				boolean leftIsBuild = ((BatchExecNestedLoopJoin) rel).leftIsBuild();
-				leftOrder = leftIsBuild ? 'b' : 'p';
-				rightOrder = leftIsBuild ? 'p' : 'b';
-			} else {
-				leftOrder = 'b';
-				rightOrder = 'b';
-			}
-
-			int numInputs = rel.getInputs().size();
-			if (numInputs > 0) {
-				visit(rel.getInput(0), orderString + leftOrder);
-			}
-			if (numInputs > 1) {
-				visit(rel.getInput(1), orderString + rightOrder);
-			}
+				orders);
 		}
 	}
 
