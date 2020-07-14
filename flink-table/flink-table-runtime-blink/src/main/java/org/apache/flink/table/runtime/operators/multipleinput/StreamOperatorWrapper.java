@@ -83,6 +83,11 @@ public class StreamOperatorWrapper<OP extends StreamOperator<RowData>> implement
 	private final TypeInformation<?> outputType;
 
 	/**
+	 * Managed memory fraction in multiple input operator
+	 */
+	private double managedMemoryFraction = -1;
+
+	/**
 	 * The input edges of this operator wrapper, the edges' targets is this instance.
 	 */
 	private final List<Edge> inputEdges;
@@ -172,6 +177,14 @@ public class StreamOperatorWrapper<OP extends StreamOperator<RowData>> implement
 		Edge edge = new Edge(input, this, inputId);
 		this.inputEdges.add(edge);
 		input.outputEdges.add(edge);
+	}
+
+	public void setManagedMemoryFraction(double managedMemoryFraction) {
+		this.managedMemoryFraction = managedMemoryFraction;
+	}
+
+	public double getManagedMemoryFraction() {
+		return managedMemoryFraction;
 	}
 
 	public List<Edge> getInputEdges() {

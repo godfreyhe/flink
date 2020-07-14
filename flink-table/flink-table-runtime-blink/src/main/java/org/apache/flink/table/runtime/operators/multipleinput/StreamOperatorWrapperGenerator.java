@@ -107,6 +107,7 @@ public class StreamOperatorWrapperGenerator {
 		tailOperatorWrapper = visit(tailTransform);
 		checkState(orderedInputTransforms.size() == inputTransforms.size());
 		checkState(orderedInputTransforms.size() == inputSpecs.size());
+		setManagedMemoryFractionForEachWrapper();
 	}
 
 	public List<Transformation<?>> getOrderedInputTransforms() {
@@ -250,5 +251,15 @@ public class StreamOperatorWrapperGenerator {
 		checkNotNull(outputWrapper);
 		int inputId = inputSpecs.size() + 1;
 		return new InputSpec(inputId, readOrder, outputWrapper, inputIndex);
+	}
+
+	private void setManagedMemoryFractionForEachWrapper() {
+		for (Map.Entry<Transformation<?>, StreamOperatorWrapper<?>> entry : visitedTransforms.entrySet()) {
+			double fraction = 0;
+			if (managedMemoryWeight != 0) {
+				fraction = entry.getKey().getManagedMemoryWeight() * 1.0 / this.managedMemoryWeight;
+			}
+			entry.getValue().setManagedMemoryFraction(fraction);
+		}
 	}
 }
