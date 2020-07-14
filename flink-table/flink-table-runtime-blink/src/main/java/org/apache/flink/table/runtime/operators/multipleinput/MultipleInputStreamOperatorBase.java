@@ -20,6 +20,7 @@ package org.apache.flink.table.runtime.operators.multipleinput;
 
 import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
+import org.apache.flink.runtime.jobgraph.OperatorID;
 import org.apache.flink.streaming.api.graph.StreamConfig;
 import org.apache.flink.streaming.api.operators.AbstractStreamOperatorV2;
 import org.apache.flink.streaming.api.operators.Input;
@@ -218,6 +219,7 @@ public abstract class MultipleInputStreamOperatorBase
 		final boolean isObjectReuseEnabled = parameters.getContainingTask().getExecutionConfig().isObjectReuseEnabled();
 		final ExecutionConfig executionConfig = parameters.getContainingTask().getExecutionConfig();
 		final Iterator<StreamOperatorWrapper<?>> it = topologicalOrderingOperators.descendingIterator();
+		int index = 0;
 
 		while (it.hasNext()) {
 			final StreamOperatorWrapper<?> wrapper = it.next();
@@ -251,7 +253,7 @@ public abstract class MultipleInputStreamOperatorBase
 				}
 			}
 			final StreamOperatorParameters<RowData> newParameters =
-					createSubOperatorParameters(parameters, output, wrapper);
+					createSubOperatorParameters(parameters, output, wrapper, index++);
 			wrapper.createOperator(newParameters);
 		}
 	}
@@ -259,7 +261,8 @@ public abstract class MultipleInputStreamOperatorBase
 	private StreamOperatorParameters<RowData> createSubOperatorParameters(
 			StreamOperatorParameters<RowData> multipleInputOperator,
 			Output<StreamRecord<RowData>> output,
-			StreamOperatorWrapper<?> wrapper) {
+			StreamOperatorWrapper<?> wrapper,
+			int index) {
 		final ExecutionConfig executionConfig = getExecutionConfig();
 
 		// TODO refactor this
@@ -273,6 +276,12 @@ public abstract class MultipleInputStreamOperatorBase
 		double managedMemoryFraction = multipleInputOperator.getStreamConfig().getManagedMemoryFraction() *
 				wrapper.getManagedMemoryFraction();
 		streamConfig.setManagedMemoryFraction(managedMemoryFraction);
+		long lowerPart = multipleInputOperator.getStreamConfig().getOperatorID().getLowerPart() +
+				multipleInputOperator.getStreamConfig().getOperatorID().getUpperPart();
+		streamConfig.setOperatorID(new OperatorID(lowerPart, index));
+		streamConfig.setOperatorName(wrapper.toString());
+		streamConfig.getConfiguration().setBoolean("CHAIN_END", false);
+		streamConfig.getConfiguration().setBoolean("isChainedSubtask", false);
 
 		return new StreamOperatorParameters<>(
 				multipleInputOperator.getContainingTask(),
