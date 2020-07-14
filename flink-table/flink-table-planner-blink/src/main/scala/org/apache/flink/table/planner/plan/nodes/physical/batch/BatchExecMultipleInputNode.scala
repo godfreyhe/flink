@@ -112,6 +112,9 @@ class BatchExecMultipleInputNode(
   }
 
   private def getParallelism(parallelism: Int, tableConfig: TableConfig): Int = {
+    if (parallelism == 1) {
+      return parallelism
+    }
     val p = if (parallelism > 0) {
       parallelism
     } else {
