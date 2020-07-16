@@ -18,11 +18,15 @@
 
 package org.apache.flink.table.runtime.operators.multipleinput;
 
+import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.operators.ResourceSpec;
 import org.apache.flink.api.dag.Transformation;
 import org.apache.flink.streaming.api.operators.MultipleInputStreamOperator;
+import org.apache.flink.streaming.api.operators.SimpleOperatorFactory;
+import org.apache.flink.streaming.api.operators.StreamMap;
 import org.apache.flink.streaming.api.transformations.OneInputTransformation;
 import org.apache.flink.streaming.api.transformations.TwoInputTransformation;
+import org.apache.flink.streaming.api.transformations.UnionTransformation;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.runtime.operators.multipleinput.input.InputSpec;
 
@@ -107,7 +111,7 @@ public class StreamOperatorWrapperGenerator {
 		tailOperatorWrapper = visit(tailTransform);
 		checkState(orderedInputTransforms.size() == inputTransforms.size());
 		checkState(orderedInputTransforms.size() == inputSpecs.size());
-		setManagedMemoryFractionForEachWrapper();
+		calculateManagedMemoryFraction();
 	}
 
 	public List<Transformation<?>> getOrderedInputTransforms() {
@@ -146,7 +150,6 @@ public class StreamOperatorWrapperGenerator {
 		return managedMemoryWeight;
 	}
 
-	@SuppressWarnings("unchecked")
 	private StreamOperatorWrapper<?> visit(Transformation<?> transform) {
 		if (minResources == null) {
 			parallelism = transform.getParallelism();
@@ -173,13 +176,15 @@ public class StreamOperatorWrapperGenerator {
 		return wrapper;
 	}
 
+	@SuppressWarnings({"unchecked", "rawtypes"})
 	private StreamOperatorWrapper<?> visitTransformation(Transformation<?> transform) {
 		if (transform instanceof OneInputTransformation) {
 			return visitOneInputTransformation((OneInputTransformation) transform);
 		} else if (transform instanceof TwoInputTransformation) {
 			return visitTwoInputTransformation((TwoInputTransformation) transform);
-		} else {
-			// TODO supports more transformation, e.g. UnionTransformation
+		} else  if (transform instanceof UnionTransformation) {
+			return visitUnionTransformation((UnionTransformation) transform);
+		} else  {
 			throw new RuntimeException("Unsupported Transformation: " + transform);
 		}
 	}
@@ -247,13 +252,43 @@ public class StreamOperatorWrapperGenerator {
 		return wrapper;
 	}
 
+	private StreamOperatorWrapper<?> visitUnionTransformation(
+			UnionTransformation<RowData> transform) {
+		// use MapFunction to combine the input data
+		StreamOperatorWrapper<?> wrapper = new StreamOperatorWrapper<>(
+				SimpleOperatorFactory.of(new StreamMap<>((MapFunction<RowData, RowData>) value -> value)),
+				transform.getName(),
+				Collections.singletonList(transform.getOutputType()), // The input type is the same as the output type
+				transform.getOutputType());
+
+		boolean isHeadOperator = false;
+		for (Transformation<RowData> input : transform.getInputs()) {
+			int inputIdx = inputTransforms.indexOf(input);
+			if (inputIdx >= 0) {
+				isHeadOperator = true;
+				orderedInputTransforms.add(input);
+				inputSpecs.add(createInputSpec(readOrders[inputIdx], wrapper, 1)); // always 1 here
+			} else {
+				StreamOperatorWrapper<?> inputWrapper = visit(input);
+				wrapper.addInput(inputWrapper, 1); // always 1 here
+			}
+		}
+		if (isHeadOperator) {
+			headOperatorWrappers.add(wrapper);
+		}
+		return wrapper;
+	}
+
 	private InputSpec createInputSpec(int readOrder, StreamOperatorWrapper<?> outputWrapper, int inputIndex) {
 		checkNotNull(outputWrapper);
 		int inputId = inputSpecs.size() + 1;
 		return new InputSpec(inputId, readOrder, outputWrapper, inputIndex);
 	}
 
-	private void setManagedMemoryFractionForEachWrapper() {
+	/**
+	 * calculate managed memory fraction for each operator wrapper.
+	 */
+	private void calculateManagedMemoryFraction() {
 		for (Map.Entry<Transformation<?>, StreamOperatorWrapper<?>> entry : visitedTransforms.entrySet()) {
 			double fraction = 0;
 			if (managedMemoryWeight != 0) {

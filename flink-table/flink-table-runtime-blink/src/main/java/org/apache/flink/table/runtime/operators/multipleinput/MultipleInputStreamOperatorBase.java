@@ -215,6 +215,7 @@ public abstract class MultipleInputStreamOperatorBase
 	/**
 	 * Create all sub-operators by corresponding operator factory in a multiple input operator from <b>tail to head</b>.
 	 */
+	@SuppressWarnings("unchecked")
 	private void createAllOperators(StreamOperatorParameters<RowData> parameters) {
 		final boolean isObjectReuseEnabled = parameters.getContainingTask().getExecutionConfig().isObjectReuseEnabled();
 		final ExecutionConfig executionConfig = parameters.getContainingTask().getExecutionConfig();
