@@ -29,13 +29,12 @@ import org.apache.flink.table.planner.delegation.BatchPlanner
 import org.apache.flink.table.planner.plan.nodes.exec.{BatchExecNode, ExecNode}
 import org.apache.flink.table.planner.plan.nodes.physical.MultipleInputRel
 import org.apache.flink.table.runtime.operators.multipleinput.{BatchMultipleInputStreamOperatorFactory, StreamOperatorWrapperGenerator}
-import org.apache.flink.table.runtime.typeutils.RowDataTypeInfo
+import org.apache.flink.table.runtime.typeutils.InternalTypeInfo
 
 import org.apache.calcite.plan.{RelOptCluster, RelTraitSet}
 import org.apache.calcite.rel.RelNode
 
 import java.util
-
 import scala.collection.JavaConversions._
 
 /**
@@ -80,7 +79,7 @@ class BatchExecMultipleInputNode(
     val inputTransforms = getInputNodes.map(n => n.translateToPlan(planner))
     val tailTransform = outputRel.asInstanceOf[BatchExecNode[_]].translateToPlan(planner)
 
-    val outputType = RowDataTypeInfo.of(FlinkTypeFactory.toLogicalRowType(getRowType))
+    val outputType = InternalTypeInfo.of(FlinkTypeFactory.toLogicalRowType(getRowType))
 
     val generator = new StreamOperatorWrapperGenerator(inputTransforms, tailTransform, readOrders)
     generator.generate()
