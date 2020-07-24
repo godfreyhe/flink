@@ -51,16 +51,16 @@ public class StreamOperatorWrapper<OP extends StreamOperator<RowData>> implement
 	private final StreamOperatorFactory<RowData> factory;
 
 	/**
-	 * the operator name for debug
+	 * the operator name for debug.
 	 */
 	private final String name;
 
 	/**
 	 * The type info of this wrapped operator's all inputs.
 	 *
-	 * <p><strong>NOTE:<strong/> The inputs of an operator may not all be in the multiple input operator, e.g.
+	 * <p><strong>NOTE:<strong/>The inputs of an operator may not all be in the multiple input operator, e.g.
 	 * The multiple input operator contains A and J, and A is one of the input of J,
-	 * and another input of J is not in the multiple input operator.
+	 * and another input of J is not in the multiple input operator.</p>
 	 * <pre>
 	 * -------
 	 *        \
@@ -78,12 +78,12 @@ public class StreamOperatorWrapper<OP extends StreamOperator<RowData>> implement
 	private final int totalInputCount;
 
 	/**
-	 * The type info of this wrapped operator's output
+	 * The type info of this wrapped operator's output.
 	 */
 	private final TypeInformation<?> outputType;
 
 	/**
-	 * Managed memory fraction in multiple input operator
+	 * Managed memory fraction in multiple input operator.
 	 */
 	private double managedMemoryFraction = -1;
 
@@ -171,7 +171,7 @@ public class StreamOperatorWrapper<OP extends StreamOperator<RowData>> implement
 	}
 
 	/**
-	 * This method is only used to
+	 * This method is only used to.
 	 */
 	public void addInput(StreamOperatorWrapper<?> input, int inputId) {
 		Edge edge = new Edge(input, this, inputId);

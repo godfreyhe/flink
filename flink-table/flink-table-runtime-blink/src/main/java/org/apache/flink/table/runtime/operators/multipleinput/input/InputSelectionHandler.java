@@ -39,7 +39,7 @@ public class InputSelectionHandler {
 	private final List<InputSpec> inputSpecs;
 	private final int numberOfInput;
 	/**
-	 * All inputs ids sorted by priority
+	 * All inputs ids sorted by priority.
 	 */
 	private final List<List<Integer>> sortedAvailableInputs;
 	private InputSelection inputSelection;

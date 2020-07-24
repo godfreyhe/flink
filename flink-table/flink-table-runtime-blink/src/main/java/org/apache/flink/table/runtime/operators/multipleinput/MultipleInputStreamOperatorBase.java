@@ -279,7 +279,9 @@ public abstract class MultipleInputStreamOperatorBase
 		streamConfig.setManagedMemoryFraction(managedMemoryFraction);
 		long lowerPart = multipleInputOperator.getStreamConfig().getOperatorID().getLowerPart() +
 				multipleInputOperator.getStreamConfig().getOperatorID().getUpperPart();
-		streamConfig.setOperatorID(new OperatorID(lowerPart, index));
+		OperatorID operatorID = new OperatorID(lowerPart, index);
+		LOG.info("operator name: " + wrapper.toString() + " operator id: " + operatorID);
+		streamConfig.setOperatorID(operatorID);
 		streamConfig.setOperatorName(wrapper.toString());
 		streamConfig.getConfiguration().setBoolean("CHAIN_END", false);
 		streamConfig.getConfiguration().setBoolean("isChainedSubtask", false);
