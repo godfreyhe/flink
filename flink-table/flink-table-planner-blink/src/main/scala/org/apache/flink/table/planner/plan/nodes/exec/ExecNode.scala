@@ -25,6 +25,7 @@ import org.apache.flink.streaming.api.operators.StreamOperatorFactory
 import org.apache.flink.streaming.api.transformations.{OneInputTransformation, TwoInputTransformation}
 import org.apache.flink.table.api.TableException
 import org.apache.flink.table.delegation.Planner
+import org.apache.flink.table.planner.delegation.{BatchPlanner, StreamPlanner}
 import org.apache.flink.table.planner.plan.nodes.physical.FlinkPhysicalRel
 
 import org.apache.calcite.rel.RelDistribution
@@ -57,6 +58,15 @@ trait ExecNode[E <: Planner, T] {
   def translateToPlan(planner: E): Transformation[T] = {
     if (transformation == null) {
       transformation = translateToPlanInternal(planner)
+      val tableConfig = planner match {
+        case s: StreamPlanner => s.getTableConfig
+        case b: BatchPlanner => b.getTableConfig
+        case _ => throw new TableException("Unsupported planner: " + planner)
+      }
+      val jobName = tableConfig.getConfiguration.getString("__job_name__", null)
+      if (jobName != null) {
+        transformation.setName(jobName + "---" + transformation.getName)
+      }
     }
     transformation
   }
