@@ -22,7 +22,9 @@ import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.JoinInfo;
 import org.apache.calcite.util.ImmutableIntList;
 import org.apache.flink.annotation.VisibleForTesting;
+import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.transformations.ShuffleMode;
+import org.apache.flink.table.api.config.OptimizerConfigOptions;
 import org.apache.flink.table.planner.plan.nodes.FlinkRelNode;
 import org.apache.flink.table.planner.plan.nodes.exec.ExecNode;
 import org.apache.flink.table.planner.plan.nodes.physical.batch.BatchExecBoundedStreamScan;
@@ -70,13 +72,11 @@ public class MultipleInputNodeCreationProcessor implements DAGProcessor {
 		BatchExecLegacyTableSourceScan.class,
 		BatchExecBoundedStreamScan.class,
 		BatchExecIntermediateTableScan.class,
-		BatchExecUnion.class,
 		BatchExecExchange.class,
 		StreamExecTableSourceScan.class,
 		StreamExecLegacyTableSourceScan.class,
 		StreamExecDataStreamScan.class,
 		StreamExecIntermediateTableScan.class,
-		StreamExecUnion.class,
 		StreamExecExchange.class);
 
 	private static final List<Class<?>> ROOT_CLASS = Arrays.asList(
@@ -88,9 +88,11 @@ public class MultipleInputNodeCreationProcessor implements DAGProcessor {
 		StreamExecTemporalJoin.class);
 
 	private final boolean isStreaming;
+	private final Configuration conf;
 
-	public MultipleInputNodeCreationProcessor(boolean isStreaming) {
+	public MultipleInputNodeCreationProcessor(boolean isStreaming, Configuration conf) {
 		this.isStreaming = isStreaming;
+		this.conf = conf;
 	}
 
 	@Override
@@ -180,15 +182,35 @@ public class MultipleInputNodeCreationProcessor implements DAGProcessor {
 
 		for (int i = sortedWrappers.size() - 1; i >= 0; i--) {
 			ExecNodeWrapper wrapper = sortedWrappers.get(i);
-			boolean differentMultipleInputNodeWithInput =
-				wrapper.inputs.size() == 1 && !sameMultipleInputNode(wrapper, wrapper.inputs.get(0));
-			boolean sameMultipleInputNodeWithOutput =
-				wrapper.outputs.size() == 1 && sameMultipleInputNode(wrapper, wrapper.outputs.get(0));
+
+			boolean differentMultipleInputNodeWithInput = true;
+			for (ExecNodeWrapper inputWrapper : wrapper.inputs) {
+				if (sameMultipleInputNode(wrapper, inputWrapper)) {
+					differentMultipleInputNodeWithInput = false;
+					break;
+				}
+			}
+
+			boolean sameMultipleInputNodeWithOutput = true;
+			for (ExecNodeWrapper outputWrapper : wrapper.outputs) {
+				if (!sameMultipleInputNode(wrapper, outputWrapper)) {
+					sameMultipleInputNodeWithOutput = false;
+					break;
+				}
+			}
+
 			if (differentMultipleInputNodeWithInput && sameMultipleInputNodeWithOutput) {
-				boolean inputIsExchange =
-					wrapper.inputs.get(0).execNode instanceof BatchExecExchange ||
-						wrapper.inputs.get(0).execNode instanceof StreamExecExchange;
-				if (!inputIsExchange) {
+				boolean shouldRemove = false;
+				if (wrapper.inputs.size() == 1) {
+					boolean inputIsExchange =
+						wrapper.inputs.get(0).execNode instanceof BatchExecExchange ||
+							wrapper.inputs.get(0).execNode instanceof StreamExecExchange;
+					shouldRemove = !inputIsExchange;
+				} else if (wrapper.execNode instanceof BatchExecUnion || wrapper.execNode instanceof StreamExecUnion) {
+					shouldRemove = true;
+				}
+
+				if (shouldRemove && !wrapper.outputs.isEmpty()) {
 					wrapper.outputs.get(0).removeMultipleInputNodeTail(wrapper);
 				}
 			}
@@ -230,7 +252,7 @@ public class MultipleInputNodeCreationProcessor implements DAGProcessor {
 		return a.info.equals(b.info);
 	}
 
-	private static class ExecNodeWrapper {
+	private class ExecNodeWrapper {
 		private final ExecNode<?, ?> execNode;
 		private final List<ExecNodeWrapper> inputs;
 		private final List<ExecNodeWrapper> outputs;
@@ -264,16 +286,12 @@ public class MultipleInputNodeCreationProcessor implements DAGProcessor {
 		}
 
 		private void removeMultipleInputNodeTail(ExecNodeWrapper tail) {
-			Preconditions.checkArgument(
-				tail.inputs.size() == 1,
-				"Tail of multiple input node must have exactly 1 input. This is a bug.");
-
 			tail.info = new MultipleInputNodeInfo(tail.execNode);
 			info.memberCount--;
 		}
 	}
 
-	private static class MultipleInputNodeInfo {
+	private class MultipleInputNodeInfo {
 		private final ExecNode<?, ?> root;
 		private final boolean canAddMember;
 		private final List<ExecNode<?, ?>> inputs;
@@ -283,7 +301,11 @@ public class MultipleInputNodeCreationProcessor implements DAGProcessor {
 
 		private MultipleInputNodeInfo(ExecNode<?, ?> root) {
 			this.root = root;
-			this.canAddMember = ROOT_CLASS.stream().anyMatch(clazz -> clazz.isInstance(root));
+			boolean canAddMember = ROOT_CLASS.stream().anyMatch(clazz -> clazz.isInstance(root));
+			if (conf.getBoolean(OptimizerConfigOptions.TABLE_OPTIMIZER_MULTIPLE_INPUT_UNION_ROOT_ALLOWED)) {
+				canAddMember = canAddMember || root instanceof BatchExecUnion || root instanceof StreamExecUnion;
+			}
+			this.canAddMember = canAddMember;
 			this.inputs = new ArrayList<>();
 
 			this.memberCount = 1;
@@ -360,7 +382,7 @@ public class MultipleInputNodeCreationProcessor implements DAGProcessor {
 	}
 
 	@VisibleForTesting
-	static class ExecNodeWrapperProducer {
+	class ExecNodeWrapperProducer {
 		private final Map<ExecNode<?, ?>, ExecNodeWrapper> wrapperMap;
 
 		ExecNodeWrapperProducer() {

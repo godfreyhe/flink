@@ -104,4 +104,9 @@ public class OptimizerConfigOptions {
 		key("table.optimizer.multiple-input-enabled")
 			.defaultValue(true)
 			.withDescription("Enables multiple input node creation. Default is disabled.");
+
+	public static final ConfigOption<Boolean> TABLE_OPTIMIZER_MULTIPLE_INPUT_UNION_ROOT_ALLOWED =
+		key("table.optimizer.multiple-input.union-root-allowed")
+			.defaultValue(false)
+			.withDescription("Allow union to be the root of a multiple input node.");
 }
