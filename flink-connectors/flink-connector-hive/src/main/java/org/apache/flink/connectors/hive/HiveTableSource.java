@@ -216,9 +216,10 @@ public class HiveTableSource implements
 				splitNum = inputFormat.createInputSplits(0).length;
 				long nano2 = System.nanoTime();
 				LOG.info(
-						"Hive source({}}) createInputSplits use time: {} ms",
+						"Hive source({}}) createInputSplits use time: {} ms, number of split: {}",
 						tablePath,
-						(nano2 - nano1) / 1_000_000);
+						(nano2 - nano1) / 1_000_000,
+						splitNum);
 			} catch (IOException e) {
 				throw new FlinkHiveException(e);
 			}
