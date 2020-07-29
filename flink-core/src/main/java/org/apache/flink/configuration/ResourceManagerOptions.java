@@ -67,6 +67,16 @@ public class ResourceManagerOptions {
 			"for streaming workloads, which may fail if there are not enough slots. Note that this configuration option does not take " +
 			"effect for standalone clusters, where how many slots are allocated is not controlled by Flink.");
 
+	public static final ConfigOption<Boolean> ENABLE_FIXED_SLOTS = ConfigOptions
+			.key("slotmanager.enable-fixed-slots")
+			.booleanType()
+			.defaultValue(false)
+			.withDescription("If enabled, Flink will starts and maintains fixed number of task managers. " +
+					"The number of task managers is decided by max-slots(" + MAX_SLOT_NUM.key() + ") / slot-per-tm(" +
+					TaskManagerOptions.NUM_TASK_SLOTS.key() + "). As a safety guard, this option will not take effect " +
+					"unless max-slot is explicitly configured. Once enabled, task managers will not be released on " +
+					"idle timeouts.");
+
 	/**
 	 * The number of redundant task managers. Redundant task managers are extra task managers started by Flink,
 	 * in order to speed up job recovery in case of failures due to task manager lost.

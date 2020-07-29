@@ -148,6 +148,8 @@ public class SlotManagerImpl implements SlotManager {
 
 	private final SlotManagerMetricGroup slotManagerMetricGroup;
 
+	private final boolean enableFixedSlots;
+
 	public SlotManagerImpl(
 			ScheduledExecutor scheduledExecutor,
 			SlotManagerConfiguration slotManagerConfiguration,
@@ -167,6 +169,7 @@ public class SlotManagerImpl implements SlotManager {
 		this.slotManagerMetricGroup = Preconditions.checkNotNull(slotManagerMetricGroup);
 		this.maxSlotNum = slotManagerConfiguration.getMaxSlotNum();
 		this.redundantTaskManagerNum = slotManagerConfiguration.getRedundantTaskManagerNum();
+		this.enableFixedSlots = slotManagerConfiguration.getEnableFixedSlots();
 
 		slots = new HashMap<>(16);
 		freeSlots = new LinkedHashMap<>(16);
@@ -259,6 +262,9 @@ public class SlotManagerImpl implements SlotManager {
 
 	@Override
 	public int getNumberPendingSlotRequests() {
+		if (enableFixedSlots) {
+			return maxSlotNum;
+		}
 		return pendingSlotRequests.size();
 	}
 
@@ -288,12 +294,14 @@ public class SlotManagerImpl implements SlotManager {
 
 		started = true;
 
-		taskManagerTimeoutsAndRedundancyCheck = scheduledExecutor.scheduleWithFixedDelay(
-			() -> mainThreadExecutor.execute(
-				() -> checkTaskManagerTimeoutsAndRedundancy()),
-			0L,
-			taskManagerTimeout.toMilliseconds(),
-			TimeUnit.MILLISECONDS);
+		if (!enableFixedSlots) {
+			taskManagerTimeoutsAndRedundancyCheck = scheduledExecutor.scheduleWithFixedDelay(
+				() -> mainThreadExecutor.execute(
+					() -> checkTaskManagerTimeoutsAndRedundancy()),
+				0L,
+				taskManagerTimeout.toMilliseconds(),
+				TimeUnit.MILLISECONDS);
+		}
 
 		slotRequestTimeoutCheck = scheduledExecutor.scheduleWithFixedDelay(
 			() -> mainThreadExecutor.execute(
@@ -303,6 +311,10 @@ public class SlotManagerImpl implements SlotManager {
 			TimeUnit.MILLISECONDS);
 
 		registerSlotManagerMetrics();
+
+		if (enableFixedSlots) {
+			allocateMaxSlots();
+		}
 	}
 
 	private void registerSlotManagerMetrics() {
@@ -314,6 +326,11 @@ public class SlotManagerImpl implements SlotManager {
 			() -> (long) getNumberRegisteredSlots());
 	}
 
+	private void allocateMaxSlots() {
+		for (int i = 0; i < maxSlotNum / numSlotsPerWorker; ++i) {
+			allocateResource(defaultSlotResourceProfile);
+		}
+	}
 	/**
 	 * Suspends the component. This clears the internal state of the slot manager.
 	 */

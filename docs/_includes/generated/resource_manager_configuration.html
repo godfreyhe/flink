@@ -33,6 +33,12 @@
             <td>The timeout for an idle task manager to be released.</td>
         </tr>
         <tr>
+            <td><h5>slotmanager.enable-fixed-slots</h5></td>
+            <td style="word-wrap: break-word;">false</td>
+            <td>Boolean</td>
+            <td>If enabled, Flink will starts and maintains fixed number of task managers. The number of task managers is decided by max-slots(slotmanager.number-of-slots.max) / slot-per-tm(taskmanager.numberOfTaskSlots). As a safety guard, this option will not take effect unless max-slot is explicitly configured. Once enabled, task managers will not be released on idle timeouts.</td>
+        </tr>
+        <tr>
             <td><h5>slotmanager.number-of-slots.max</h5></td>
             <td style="word-wrap: break-word;">2147483647</td>
             <td>Integer</td>

@@ -49,6 +49,7 @@ public class SlotManagerConfiguration {
 	private final int numSlotsPerWorker;
 	private final int maxSlotNum;
 	private final int redundantTaskManagerNum;
+	private final boolean enableFixedSlots;
 
 	public SlotManagerConfiguration(
 			Time taskManagerRequestTimeout,
@@ -59,7 +60,8 @@ public class SlotManagerConfiguration {
 			WorkerResourceSpec defaultWorkerResourceSpec,
 			int numSlotsPerWorker,
 			int maxSlotNum,
-			int redundantTaskManagerNum) {
+			int redundantTaskManagerNum,
+			boolean enableFixedSlots) {
 
 		this.taskManagerRequestTimeout = Preconditions.checkNotNull(taskManagerRequestTimeout);
 		this.slotRequestTimeout = Preconditions.checkNotNull(slotRequestTimeout);
@@ -73,6 +75,7 @@ public class SlotManagerConfiguration {
 		this.maxSlotNum = maxSlotNum;
 		Preconditions.checkState(redundantTaskManagerNum >= 0);
 		this.redundantTaskManagerNum = redundantTaskManagerNum;
+		this.enableFixedSlots = enableFixedSlots;
 	}
 
 	public Time getTaskManagerRequestTimeout() {
@@ -110,6 +113,9 @@ public class SlotManagerConfiguration {
 	public int getRedundantTaskManagerNum() {
 		return redundantTaskManagerNum;
 	}
+	public boolean getEnableFixedSlots() {
+		return enableFixedSlots;
+	}
 
 	public static SlotManagerConfiguration fromConfiguration(
 			Configuration configuration,
@@ -137,6 +143,8 @@ public class SlotManagerConfiguration {
 		int numSlotsPerWorker = configuration.getInteger(TaskManagerOptions.NUM_TASK_SLOTS);
 
 		int maxSlotNum = configuration.getInteger(ResourceManagerOptions.MAX_SLOT_NUM);
+		boolean enableFixedSlots = configuration.getBoolean(ResourceManagerOptions.ENABLE_FIXED_SLOTS) &&
+				configuration.contains(ResourceManagerOptions.MAX_SLOT_NUM);
 
 		int redundantTaskManagerNum = configuration.getInteger(ResourceManagerOptions.REDUNDANT_TASK_MANAGER_NUM);
 
@@ -149,7 +157,8 @@ public class SlotManagerConfiguration {
 			defaultWorkerResourceSpec,
 			numSlotsPerWorker,
 			maxSlotNum,
-			redundantTaskManagerNum);
+			redundantTaskManagerNum,
+			enableFixedSlots);
 	}
 
 	private static Time getSlotRequestTimeout(final Configuration configuration) {
