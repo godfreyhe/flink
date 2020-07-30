@@ -23,7 +23,6 @@ import org.apache.flink.api.common.operators.ResourceSpec;
 import org.apache.flink.api.dag.Transformation;
 import org.apache.flink.streaming.api.operators.MultipleInputStreamOperator;
 import org.apache.flink.streaming.api.operators.SimpleOperatorFactory;
-import org.apache.flink.streaming.api.operators.StreamMap;
 import org.apache.flink.streaming.api.transformations.OneInputTransformation;
 import org.apache.flink.streaming.api.transformations.TwoInputTransformation;
 import org.apache.flink.streaming.api.transformations.UnionTransformation;
@@ -36,6 +35,7 @@ import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
 import static org.apache.flink.util.Preconditions.checkState;
@@ -256,9 +256,9 @@ public class StreamOperatorWrapperGenerator {
 			UnionTransformation<RowData> transform) {
 		// use MapFunction to combine the input data
 		StreamOperatorWrapper<?> wrapper = new StreamOperatorWrapper<>(
-				SimpleOperatorFactory.of(new StreamMap<>((MapFunction<RowData, RowData>) value -> value)),
+				SimpleOperatorFactory.of(new UnionStreamOperator<>((MapFunction<RowData, RowData>) value -> value)),
 				transform.getName(),
-				Collections.singletonList(transform.getOutputType()), // The input type is the same as the output type
+				transform.getInputs().stream().map(Transformation::getOutputType).collect(Collectors.toList()),
 				transform.getOutputType());
 
 		boolean isHeadOperator = false;
