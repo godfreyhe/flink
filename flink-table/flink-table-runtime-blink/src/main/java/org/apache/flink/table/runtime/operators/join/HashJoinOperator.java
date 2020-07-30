@@ -62,6 +62,7 @@ public abstract class HashJoinOperator extends TableStreamOperator<RowData>
 	private static final Logger LOG = LoggerFactory.getLogger(HashJoinOperator.class);
 
 	private final HashJoinParameter parameter;
+	private final String jobName;
 	private final boolean reverseJoinFunction;
 	private final HashJoinType type;
 
@@ -74,8 +75,9 @@ public abstract class HashJoinOperator extends TableStreamOperator<RowData>
 	private transient boolean buildEnd;
 	private transient JoinCondition condition;
 
-	HashJoinOperator(HashJoinParameter parameter) {
+	HashJoinOperator(HashJoinParameter parameter, String jobName) {
 		this.parameter = parameter;
+		this.jobName = jobName;
 		this.type = parameter.type;
 		this.reverseJoinFunction = parameter.reverseJoinFunction;
 	}
@@ -225,6 +227,34 @@ public abstract class HashJoinOperator extends TableStreamOperator<RowData>
 			long buildRowCount,
 			long probeRowCount,
 			RowType keyType) {
+		return newHashJoinOperator(
+			type,
+			condFuncCode,
+			reverseJoinFunction,
+			filterNullKeys,
+			buildProjectionCode,
+			probeProjectionCode,
+			tryDistinctBuildRow,
+			buildRowSize,
+			buildRowCount,
+			probeRowCount,
+			keyType,
+			"");
+	}
+
+	public static HashJoinOperator newHashJoinOperator(
+			HashJoinType type,
+			GeneratedJoinCondition condFuncCode,
+			boolean reverseJoinFunction,
+			boolean[] filterNullKeys,
+			GeneratedProjection buildProjectionCode,
+			GeneratedProjection probeProjectionCode,
+			boolean tryDistinctBuildRow,
+			int buildRowSize,
+			long buildRowCount,
+			long probeRowCount,
+			RowType keyType,
+			String jobName) {
 		HashJoinParameter parameter = new HashJoinParameter(
 				type,
 				condFuncCode,
@@ -239,20 +269,20 @@ public abstract class HashJoinOperator extends TableStreamOperator<RowData>
 				keyType);
 		switch (type) {
 			case INNER:
-				return new InnerHashJoinOperator(parameter);
+				return new InnerHashJoinOperator(parameter, jobName);
 			case BUILD_OUTER:
-				return new BuildOuterHashJoinOperator(parameter);
+				return new BuildOuterHashJoinOperator(parameter, jobName);
 			case PROBE_OUTER:
-				return new ProbeOuterHashJoinOperator(parameter);
+				return new ProbeOuterHashJoinOperator(parameter, jobName);
 			case FULL_OUTER:
-				return new FullOuterHashJoinOperator(parameter);
+				return new FullOuterHashJoinOperator(parameter, jobName);
 			case SEMI:
-				return new SemiHashJoinOperator(parameter);
+				return new SemiHashJoinOperator(parameter, jobName);
 			case ANTI:
-				return new AntiHashJoinOperator(parameter);
+				return new AntiHashJoinOperator(parameter, jobName);
 			case BUILD_LEFT_SEMI:
 			case BUILD_LEFT_ANTI:
-				return new BuildLeftSemiOrAntiHashJoinOperator(parameter);
+				return new BuildLeftSemiOrAntiHashJoinOperator(parameter, jobName);
 			default:
 				throw new IllegalArgumentException("invalid: " + type);
 		}
@@ -298,8 +328,8 @@ public abstract class HashJoinOperator extends TableStreamOperator<RowData>
 	 */
 	private static class InnerHashJoinOperator extends HashJoinOperator {
 
-		InnerHashJoinOperator(HashJoinParameter parameter) {
-			super(parameter);
+		InnerHashJoinOperator(HashJoinParameter parameter, String jobName) {
+			super(parameter, jobName);
 		}
 
 		@Override
@@ -320,8 +350,8 @@ public abstract class HashJoinOperator extends TableStreamOperator<RowData>
 	 */
 	private static class BuildOuterHashJoinOperator extends HashJoinOperator {
 
-		BuildOuterHashJoinOperator(HashJoinParameter parameter) {
-			super(parameter);
+		BuildOuterHashJoinOperator(HashJoinParameter parameter, String jobName) {
+			super(parameter, jobName);
 		}
 
 		@Override
@@ -344,8 +374,8 @@ public abstract class HashJoinOperator extends TableStreamOperator<RowData>
 	 */
 	private static class ProbeOuterHashJoinOperator extends HashJoinOperator {
 
-		ProbeOuterHashJoinOperator(HashJoinParameter parameter) {
-			super(parameter);
+		ProbeOuterHashJoinOperator(HashJoinParameter parameter, String jobName) {
+			super(parameter, jobName);
 		}
 
 		@Override
@@ -368,8 +398,8 @@ public abstract class HashJoinOperator extends TableStreamOperator<RowData>
 	 */
 	private static class FullOuterHashJoinOperator extends HashJoinOperator {
 
-		FullOuterHashJoinOperator(HashJoinParameter parameter) {
-			super(parameter);
+		FullOuterHashJoinOperator(HashJoinParameter parameter, String jobName) {
+			super(parameter, jobName);
 		}
 
 		@Override
@@ -392,8 +422,8 @@ public abstract class HashJoinOperator extends TableStreamOperator<RowData>
 	 */
 	private static class SemiHashJoinOperator extends HashJoinOperator {
 
-		SemiHashJoinOperator(HashJoinParameter parameter) {
-			super(parameter);
+		SemiHashJoinOperator(HashJoinParameter parameter, String jobName) {
+			super(parameter, jobName);
 		}
 
 		@Override
@@ -411,8 +441,8 @@ public abstract class HashJoinOperator extends TableStreamOperator<RowData>
 	 */
 	private static class AntiHashJoinOperator extends HashJoinOperator {
 
-		AntiHashJoinOperator(HashJoinParameter parameter) {
-			super(parameter);
+		AntiHashJoinOperator(HashJoinParameter parameter, String jobName) {
+			super(parameter, jobName);
 		}
 
 		@Override
@@ -431,8 +461,8 @@ public abstract class HashJoinOperator extends TableStreamOperator<RowData>
 	 */
 	private static class BuildLeftSemiOrAntiHashJoinOperator extends HashJoinOperator {
 
-		BuildLeftSemiOrAntiHashJoinOperator(HashJoinParameter parameter) {
-			super(parameter);
+		BuildLeftSemiOrAntiHashJoinOperator(HashJoinParameter parameter, String jobName) {
+			super(parameter, jobName);
 		}
 
 		@Override

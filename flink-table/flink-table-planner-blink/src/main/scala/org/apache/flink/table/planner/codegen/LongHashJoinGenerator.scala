@@ -113,7 +113,8 @@ object LongHashJoinGenerator {
       buildRowSize: Int,
       buildRowCount: Long,
       reverseJoinFunction: Boolean,
-      condFunc: GeneratedJoinCondition): CodeGenOperatorFactory[RowData] = {
+      condFunc: GeneratedJoinCondition,
+      jobName: String = ""): CodeGenOperatorFactory[RowData] = {
 
     val buildSer = new BinaryRowDataSerializer(buildType.getFieldCount)
     val probeSer = new BinaryRowDataSerializer(probeType.getFieldCount)
@@ -180,7 +181,7 @@ object LongHashJoinGenerator {
          |      computeMemorySize(),
          |      getContainingTask().getEnvironment().getIOManager(),
          |      $buildRowSize,
-         |      ${buildRowCount}L / getRuntimeContext().getNumberOfParallelSubtasks());
+         |      ${buildRowCount}L / getRuntimeContext().getNumberOfParallelSubtasks(), "$jobName");
          |  }
          |
          |  @Override

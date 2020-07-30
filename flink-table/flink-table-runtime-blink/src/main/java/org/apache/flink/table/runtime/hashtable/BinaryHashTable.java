@@ -59,6 +59,8 @@ import static org.apache.flink.util.Preconditions.checkArgument;
  */
 public class BinaryHashTable extends BaseHybridHashTable {
 
+	private final String jobName;
+
 	/**
 	 * The utilities to serialize the build side data types.
 	 */
@@ -179,8 +181,51 @@ public class BinaryHashTable extends BaseHybridHashTable {
 			boolean reverseJoin,
 			boolean[] filterNulls,
 			boolean tryDistinctBuildRow) {
+		this(
+			conf,
+			owner,
+			buildSideSerializer,
+			probeSideSerializer,
+			buildSideProjection,
+			probeSideProjection,
+			memManager,
+			reservedMemorySize,
+			ioManager,
+			avgRecordLen,
+			buildRowCount,
+			useBloomFilters,
+			type,
+			condFunc,
+			reverseJoin,
+			filterNulls,
+			tryDistinctBuildRow,
+			"");
+	}
+
+	public BinaryHashTable(
+			Configuration conf,
+			Object owner,
+			AbstractRowDataSerializer buildSideSerializer,
+			AbstractRowDataSerializer probeSideSerializer,
+			Projection<RowData, BinaryRowData> buildSideProjection,
+			Projection<RowData, BinaryRowData> probeSideProjection,
+			MemoryManager memManager,
+			long reservedMemorySize,
+			IOManager ioManager,
+			int avgRecordLen,
+			long buildRowCount,
+			boolean useBloomFilters,
+			HashJoinType type,
+			JoinCondition condFunc,
+			boolean reverseJoin,
+			boolean[] filterNulls,
+			boolean tryDistinctBuildRow,
+			String jobName) {
 		super(conf, owner, memManager, reservedMemorySize,
 				ioManager, avgRecordLen, buildRowCount, !type.buildLeftSemiOrAnti() && tryDistinctBuildRow);
+
+		this.jobName = jobName;
+
 		// assign the members
 		this.originBuildSideSerializer = buildSideSerializer;
 		this.binaryBuildSideSerializer = new BinaryRowDataSerializer(buildSideSerializer.getArity());
@@ -607,9 +652,9 @@ public class BinaryHashTable extends BaseHybridHashTable {
 				this.currentEnumerator.next(), this.buildSpillReturnBuffers);
 		this.buildSpillRetBufferNumbers += numBuffersFreed;
 
-		LOG.info(String.format("Grace hash join: Ran out memory, choosing partition " +
+		LOG.info(String.format("[%s] Grace hash join: Ran out memory, choosing partition " +
 						"[%d] to spill, %d memory segments being freed",
-				largestPartNum, numBuffersFreed));
+				jobName, largestPartNum, numBuffersFreed));
 
 		// grab as many buffers as are available directly
 		MemorySegment currBuff;

@@ -48,6 +48,8 @@ import static org.apache.flink.table.runtime.hashtable.LongHashPartition.INVALID
  */
 public abstract class LongHybridHashTable extends BaseHybridHashTable {
 
+	private final String jobName;
+
 	private final BinaryRowDataSerializer buildSideSerializer;
 	private final BinaryRowDataSerializer probeSideSerializer;
 	private final ArrayList<LongHashPartition> partitionsBeingBuilt;
@@ -71,7 +73,34 @@ public abstract class LongHybridHashTable extends BaseHybridHashTable {
 			IOManager ioManager,
 			int avgRecordLen,
 			long buildRowCount) {
+		this(
+			conf,
+			owner,
+			buildSideSerializer,
+			probeSideSerializer,
+			memManager,
+			reservedMemorySize,
+			ioManager,
+			avgRecordLen,
+			buildRowCount,
+			"");
+	}
+
+	public LongHybridHashTable(
+			Configuration conf,
+			Object owner,
+			BinaryRowDataSerializer buildSideSerializer,
+			BinaryRowDataSerializer probeSideSerializer,
+			MemoryManager memManager,
+			long reservedMemorySize,
+			IOManager ioManager,
+			int avgRecordLen,
+			long buildRowCount,
+			String jobName) {
 		super(conf, owner, memManager, reservedMemorySize, ioManager, avgRecordLen, buildRowCount, false);
+
+		this.jobName = jobName;
+
 		this.buildSideSerializer = buildSideSerializer;
 		this.probeSideSerializer = probeSideSerializer;
 
@@ -495,9 +524,9 @@ public abstract class LongHybridHashTable extends BaseHybridHashTable {
 		p.releaseBuckets();
 		this.buildSpillRetBufferNumbers += numBuffersFreed;
 
-		LOG.info(String.format("Grace hash join: Ran out memory, choosing partition " +
+		LOG.info(String.format("[%s] Grace hash join: Ran out memory, choosing partition " +
 						"[%d] to spill, %d memory segments being freed",
-				largestPartNum, numBuffersFreed));
+				jobName, largestPartNum, numBuffersFreed));
 
 		// grab as many buffers as are available directly
 		MemorySegment currBuff;

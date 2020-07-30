@@ -584,12 +584,13 @@ object HashAggCodeGenHelper {
       outputType: RowType,
       outputResultFromMap: String,
       sorterTerm: String,
-      retryAppend: String): (String, String) = {
+      retryAppend: String,
+      jobName: String = ""): (String, String) = {
     val (grouping, auxGrouping) = groupingAndAuxGrouping
     if (isFinal) {
       val logMapSpilling =
         CodeGenUtils.genLogInfo(
-          logTerm, s"BytesHashMap out of memory with {} entries, start spilling.",
+          logTerm, s"[$jobName] BytesHashMap out of memory with {} entries, start spilling.",
           s"$aggregateMapTerm.getNumElements()")
 
       // gen fallback to sort agg

@@ -222,6 +222,7 @@ class BatchExecHashJoin(
     val buildRowCount = Util.first(mq.getRowCount(buildRel), 200000).toLong
     val probeRowCount = Util.first(mq.getRowCount(probeRel), 200000).toLong
 
+    val jobName = config.getConfiguration.getString("__job_name__", "")
     // operator
     val operator = if (LongHashJoinGenerator.support(hashJoinType, keyType, filterNulls)) {
       LongHashJoinGenerator.gen(
@@ -235,7 +236,8 @@ class BatchExecHashJoin(
         buildRowSize,
         buildRowCount,
         reverseJoin,
-        condFunc)
+        condFunc,
+        jobName)
     } else {
       SimpleOperatorFactory.of(HashJoinOperator.newHashJoinOperator(
         hashJoinType,
@@ -248,7 +250,8 @@ class BatchExecHashJoin(
         buildRowSize,
         buildRowCount,
         probeRowCount,
-        keyType
+        keyType,
+        jobName
       ))
     }
 

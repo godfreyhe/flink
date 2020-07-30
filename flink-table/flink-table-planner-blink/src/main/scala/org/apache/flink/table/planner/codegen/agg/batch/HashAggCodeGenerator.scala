@@ -45,7 +45,8 @@ class HashAggCodeGenerator(
     grouping: Array[Int],
     auxGrouping: Array[Int],
     isMerge: Boolean,
-    isFinal: Boolean) {
+    isFinal: Boolean,
+    jobName: String = "") {
 
   private lazy val aggInfos: Array[AggregateInfo] = aggInfoList.aggInfos
 
@@ -155,7 +156,8 @@ class HashAggCodeGenerator(
       outputType,
       outputResultFromMap,
       sorterTerm,
-      retryAppend)
+      retryAppend,
+      jobName = jobName)
 
     HashAggCodeGenHelper.prepareMetrics(ctx, aggregateMapTerm, if (isFinal) sorterTerm else null)
 
