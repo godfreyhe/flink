@@ -142,13 +142,17 @@ public class TemporalRowTimeJoinOperator
 		joinCondition.open(new Configuration());
 
 		nextLeftIndex = getRuntimeContext().getState(
-			new ValueStateDescriptor<>(NEXT_LEFT_INDEX_STATE_NAME, Types.LONG));
+			new ValueStateDescriptor<>(
+					getStateNameContext().getUniqueStateName(NEXT_LEFT_INDEX_STATE_NAME), Types.LONG));
 		leftState = getRuntimeContext().getMapState(
-			new MapStateDescriptor<>(LEFT_STATE_NAME, Types.LONG, leftType));
+			new MapStateDescriptor<>(
+					getStateNameContext().getUniqueStateName(LEFT_STATE_NAME), Types.LONG, leftType));
 		rightState = getRuntimeContext().getMapState(
-			new MapStateDescriptor<>(RIGHT_STATE_NAME, Types.LONG, rightType));
+			new MapStateDescriptor<>(
+					getStateNameContext().getUniqueStateName(RIGHT_STATE_NAME), Types.LONG, rightType));
 		registeredTimer = getRuntimeContext().getState(
-			new ValueStateDescriptor<>(REGISTERED_TIMER_STATE_NAME, Types.LONG));
+			new ValueStateDescriptor<>(
+					getStateNameContext().getUniqueStateName(REGISTERED_TIMER_STATE_NAME), Types.LONG));
 
 		timerService = getInternalTimerService(
 			TIMERS_STATE_NAME, VoidNamespaceSerializer.INSTANCE, this);

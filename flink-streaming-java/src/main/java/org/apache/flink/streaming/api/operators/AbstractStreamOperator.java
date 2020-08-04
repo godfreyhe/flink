@@ -18,6 +18,7 @@
 
 package org.apache.flink.streaming.api.operators;
 
+import org.apache.flink.annotation.Internal;
 import org.apache.flink.annotation.PublicEvolving;
 import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.api.common.ExecutionConfig;
@@ -257,8 +258,16 @@ public abstract class AbstractStreamOperator<OUT>
 					runtimeContext.getTaskManagerRuntimeInfo().getConfiguration(),
 					runtimeContext.getUserCodeClassLoader()));
 
-		stateHandler = new StreamOperatorStateHandler(context, getExecutionConfig(), streamTaskCloseableRegistry);
-		timeServiceManager = context.internalTimerServiceManager();
+		StreamOperatorStateHandler stateHandler = new StreamOperatorStateHandler(context, getExecutionConfig(), streamTaskCloseableRegistry);
+		initializeState(stateHandler, context.internalTimerServiceManager());
+	}
+
+	@Internal
+	public final void initializeState(
+			StreamOperatorStateHandler stateHandler,
+			InternalTimeServiceManager<?> timeServiceManager) throws Exception {
+		this.stateHandler = stateHandler;
+		this.timeServiceManager = timeServiceManager;
 		stateHandler.initializeOperatorState(this);
 		runtimeContext.setKeyedStateStore(stateHandler.getKeyedStateStore().orElse(null));
 	}

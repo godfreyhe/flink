@@ -70,7 +70,8 @@ public class ProcTimeSortOperator extends BaseTemporalSortOperator {
 		gComparator = null;
 		sortBuffer = new ArrayList<>();
 
-		ListStateDescriptor<RowData> sortDescriptor = new ListStateDescriptor<>("sortState", inputRowType);
+		ListStateDescriptor<RowData> sortDescriptor = new ListStateDescriptor<>(
+				getStateNameContext().getUniqueStateName("sortState"), inputRowType);
 		dataState = getRuntimeContext().getListState(sortDescriptor);
 	}
 

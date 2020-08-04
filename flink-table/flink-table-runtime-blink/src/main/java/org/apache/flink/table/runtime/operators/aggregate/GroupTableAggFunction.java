@@ -99,7 +99,8 @@ public class GroupTableAggFunction extends KeyedProcessFunctionWithCleanupState<
 		function.open(new PerKeyStateDataViewStore(getRuntimeContext()));
 
 		InternalTypeInfo<RowData> accTypeInfo = InternalTypeInfo.ofFields(accTypes);
-		ValueStateDescriptor<RowData> accDesc = new ValueStateDescriptor<>("accState", accTypeInfo);
+		ValueStateDescriptor<RowData> accDesc = new ValueStateDescriptor<>(
+				getStateNameContext().getUniqueStateName("accState"), accTypeInfo);
 		accState = getRuntimeContext().getState(accDesc);
 
 		initCleanupTimeState("GroupTableAggregateCleanupTime");

@@ -93,8 +93,8 @@ public abstract class AbstractStreamOperatorV2<OUT> implements StreamOperator<OU
 	protected final LatencyStats latencyStats;
 	protected final ProcessingTimeService processingTimeService;
 
-	private StreamOperatorStateHandler stateHandler;
-	private InternalTimeServiceManager<?> timeServiceManager;
+	protected StreamOperatorStateHandler stateHandler;
+	protected InternalTimeServiceManager<?> timeServiceManager;
 
 	// We keep track of watermarks from both inputs, the combined input is the minimum
 	// Once the minimum advances we emit a new watermark for downstream operators
@@ -210,6 +210,7 @@ public abstract class AbstractStreamOperatorV2<OUT> implements StreamOperator<OU
 		stateHandler = new StreamOperatorStateHandler(context, getExecutionConfig(), cancelables);
 		timeServiceManager = context.internalTimerServiceManager();
 		stateHandler.initializeOperatorState(this);
+		runtimeContext.setKeyedStateStore(stateHandler.getKeyedStateStore().orElse(null));
 	}
 
 	/**

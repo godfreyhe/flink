@@ -90,7 +90,7 @@ public class AppendOnlyTopNFunction extends AbstractTopNFunction {
 
 		ListTypeInfo<RowData> valueTypeInfo = new ListTypeInfo<>(inputRowType);
 		MapStateDescriptor<RowData, List<RowData>> mapStateDescriptor = new MapStateDescriptor<>(
-				"data-state-with-append", sortKeyType, valueTypeInfo);
+				getStateNameContext().getUniqueStateName("data-state-with-append"), sortKeyType, valueTypeInfo);
 		dataState = getRuntimeContext().getMapState(mapStateDescriptor);
 
 		// metrics

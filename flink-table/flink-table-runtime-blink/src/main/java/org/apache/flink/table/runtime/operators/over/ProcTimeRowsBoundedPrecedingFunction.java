@@ -105,21 +105,21 @@ public class ProcTimeRowsBoundedPrecedingFunction<K> extends KeyedProcessFunctio
 		// and timestamp of oldest element
 		ListTypeInfo<RowData> rowListTypeInfo = new ListTypeInfo<RowData>(inputType);
 		MapStateDescriptor<Long, List<RowData>> mapStateDescriptor = new MapStateDescriptor<Long, List<RowData>>(
-			"inputState", BasicTypeInfo.LONG_TYPE_INFO, rowListTypeInfo);
+			getStateNameContext().getUniqueStateName("inputState"), BasicTypeInfo.LONG_TYPE_INFO, rowListTypeInfo);
 		inputState = getRuntimeContext().getMapState(mapStateDescriptor);
 
 		InternalTypeInfo<RowData> accTypeInfo = InternalTypeInfo.ofFields(accTypes);
-		ValueStateDescriptor<RowData> stateDescriptor =
-			new ValueStateDescriptor<RowData>("accState", accTypeInfo);
+		ValueStateDescriptor<RowData> stateDescriptor = new ValueStateDescriptor<>(
+			getStateNameContext().getUniqueStateName("accState"), accTypeInfo);
 		accState = getRuntimeContext().getState(stateDescriptor);
 
 		ValueStateDescriptor<Long> processedCountDescriptor = new ValueStateDescriptor<Long>(
-			"processedCountState",
+			getStateNameContext().getUniqueStateName("processedCountState"),
 			Types.LONG);
 		counterState = getRuntimeContext().getState(processedCountDescriptor);
 
 		ValueStateDescriptor<Long> smallestTimestampDescriptor = new ValueStateDescriptor<Long>(
-			"smallestTSState",
+			getStateNameContext().getUniqueStateName("smallestTSState"),
 			Types.LONG);
 		smallestTsState = getRuntimeContext().getState(smallestTimestampDescriptor);
 

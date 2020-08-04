@@ -20,7 +20,6 @@ package org.apache.flink.table.runtime.operators.multipleinput;
 
 import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
-import org.apache.flink.runtime.jobgraph.OperatorID;
 import org.apache.flink.streaming.api.graph.StreamConfig;
 import org.apache.flink.streaming.api.operators.AbstractStreamOperatorV2;
 import org.apache.flink.streaming.api.operators.Input;
@@ -269,6 +268,8 @@ public abstract class MultipleInputStreamOperatorBase
 		// TODO refactor this
 		final StreamConfig streamConfig = new StreamConfig(
 				multipleInputOperator.getStreamConfig().getConfiguration().clone());
+		streamConfig.setNumberOfInputs(wrapper.getAllInputTypes().size());
+		streamConfig.setNumberOfOutputs(1);
 		streamConfig.setTypeSerializersIn(
 				wrapper.getAllInputTypes().stream().map(
 						t -> t.createSerializer(executionConfig)).toArray(TypeSerializer[]::new));
@@ -277,14 +278,7 @@ public abstract class MultipleInputStreamOperatorBase
 		double managedMemoryFraction = multipleInputOperator.getStreamConfig().getManagedMemoryFraction() *
 				wrapper.getManagedMemoryFraction();
 		streamConfig.setManagedMemoryFraction(managedMemoryFraction);
-		long lowerPart = multipleInputOperator.getStreamConfig().getOperatorID().getLowerPart() +
-				multipleInputOperator.getStreamConfig().getOperatorID().getUpperPart();
-		OperatorID operatorID = new OperatorID(lowerPart, index);
-		LOG.info("operator name: " + wrapper.toString() + " operator id: " + operatorID);
-		streamConfig.setOperatorID(operatorID);
-		streamConfig.setOperatorName(wrapper.toString());
-		streamConfig.getConfiguration().setBoolean("CHAIN_END", false);
-		streamConfig.getConfiguration().setBoolean("isChainedSubtask", false);
+		streamConfig.setOperatorName(wrapper.getOperatorName());
 
 		return new StreamOperatorParameters<>(
 				multipleInputOperator.getContainingTask(),

@@ -26,7 +26,7 @@ import org.apache.flink.streaming.api.operators.ChainingStrategy;
 /**
  * Table operator to invoke close always.
  */
-public class TableStreamOperator<OUT> extends AbstractStreamOperator<OUT> {
+public class TableStreamOperator<OUT> extends AbstractStreamOperatorWithStateNameAware<OUT> {
 
 	private volatile boolean closed = false;
 

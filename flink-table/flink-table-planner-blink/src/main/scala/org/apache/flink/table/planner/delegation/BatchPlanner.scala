@@ -65,10 +65,10 @@ class BatchPlanner(
     val context = new DAGProcessContext(this)
     // breakup deadlock
     val execNodePlanWithoutDeadlock = new DeadlockBreakupProcessor().process(execNodePlan, context)
-    if (config.getConfiguration.getBoolean(OptimizerConfigOptions.TABLE_OPTIMIZER_MULTIPLE_INPUT_ENABLED)) {
-      new MultipleInputNodeCreationProcessor(
-        false,
-        config.getConfiguration).process(execNodePlanWithoutDeadlock, context)
+    if (config.getConfiguration.getBoolean(
+      OptimizerConfigOptions.TABLE_OPTIMIZER_MULTIPLE_INPUT_ENABLED)) {
+      new MultipleInputNodeCreationProcessor(false, config.getConfiguration)
+        .process(execNodePlanWithoutDeadlock, context)
     } else {
       execNodePlanWithoutDeadlock
     }

@@ -31,6 +31,7 @@ import org.apache.flink.streaming.api.operators.TimestampedCollector;
 import org.apache.flink.table.data.JoinedRowData;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.runtime.dataview.PerKeyStateDataViewStore;
+import org.apache.flink.table.runtime.functions.KeyedProcessFunctionWithStateNameAware;
 import org.apache.flink.table.runtime.generated.AggsHandleFunction;
 import org.apache.flink.table.runtime.generated.GeneratedAggsHandleFunction;
 import org.apache.flink.table.runtime.typeutils.InternalTypeInfo;
@@ -57,7 +58,8 @@ import java.util.List;
  * RANGE BETWEEN INTERVAL '4' SECOND PRECEDING AND CURRENT ROW)
  * FROM T.
  */
-public class ProcTimeRangeBoundedPrecedingFunction<K> extends KeyedProcessFunction<K, RowData, RowData> {
+public class ProcTimeRangeBoundedPrecedingFunction<K> extends
+		KeyedProcessFunctionWithStateNameAware<K, RowData, RowData> {
 	private static final long serialVersionUID = 1L;
 
 	private static final Logger LOG = LoggerFactory.getLogger(ProcTimeRangeBoundedPrecedingFunction.class);
@@ -99,16 +101,16 @@ public class ProcTimeRangeBoundedPrecedingFunction<K> extends KeyedProcessFuncti
 		// we keep the elements received in a map state indexed based on their ingestion time
 		ListTypeInfo<RowData> rowListTypeInfo = new ListTypeInfo<>(inputType);
 		MapStateDescriptor<Long, List<RowData>> mapStateDescriptor = new MapStateDescriptor<>(
-			"inputState", BasicTypeInfo.LONG_TYPE_INFO, rowListTypeInfo);
+			getStateNameContext().getUniqueStateName("inputState"), BasicTypeInfo.LONG_TYPE_INFO, rowListTypeInfo);
 		inputState = getRuntimeContext().getMapState(mapStateDescriptor);
 
 		InternalTypeInfo<RowData> accTypeInfo = InternalTypeInfo.ofFields(accTypes);
-		ValueStateDescriptor<RowData> stateDescriptor =
-			new ValueStateDescriptor<RowData>("accState", accTypeInfo);
+		ValueStateDescriptor<RowData> stateDescriptor = new ValueStateDescriptor<>(
+			getStateNameContext().getUniqueStateName("accState"), accTypeInfo);
 		accState = getRuntimeContext().getState(stateDescriptor);
 
 		ValueStateDescriptor<Long> cleanupTsStateDescriptor = new ValueStateDescriptor<>(
-			"cleanupTsState",
+			getStateNameContext().getUniqueStateName("cleanupTsState"),
 			Types.LONG
 		);
 		this.cleanupTsState = getRuntimeContext().getState(cleanupTsStateDescriptor);

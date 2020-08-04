@@ -20,6 +20,8 @@ package org.apache.flink.table.runtime.operators.bundle;
 
 import org.apache.flink.api.common.functions.Function;
 import org.apache.flink.table.runtime.context.ExecutionContext;
+import org.apache.flink.table.runtime.operators.StateNameAware;
+import org.apache.flink.table.runtime.operators.StateNameContext;
 import org.apache.flink.util.Collector;
 import org.apache.flink.util.Preconditions;
 
@@ -35,11 +37,12 @@ import java.util.Map;
  * @param <IN>  Type of the input elements.
  * @param <OUT> Type of the returned elements.
  */
-public abstract class MapBundleFunction<K, V, IN, OUT> implements Function {
+public abstract class MapBundleFunction<K, V, IN, OUT> implements Function, StateNameAware {
 
 	private static final long serialVersionUID = -6672219582127325882L;
 
 	protected transient ExecutionContext ctx;
+	private StateNameContext stateNameContext = new StateNameContext();
 
 	public void open(ExecutionContext ctx) throws Exception {
 		this.ctx = Preconditions.checkNotNull(ctx);
@@ -59,4 +62,14 @@ public abstract class MapBundleFunction<K, V, IN, OUT> implements Function {
 	public abstract void finishBundle(Map<K, V> buffer, Collector<OUT> out) throws Exception;
 
 	public void close() throws Exception {}
+
+	@Override
+	public StateNameContext getStateNameContext() {
+		return stateNameContext;
+	}
+
+	@Override
+	public void setStateNameContext(StateNameContext context) {
+		this.stateNameContext = context;
+	}
 }

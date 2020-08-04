@@ -20,14 +20,19 @@ package org.apache.flink.table.runtime.operators.multipleinput;
 
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.operators.ResourceSpec;
+import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.dag.Transformation;
+import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.streaming.api.operators.MultipleInputStreamOperator;
 import org.apache.flink.streaming.api.operators.SimpleOperatorFactory;
 import org.apache.flink.streaming.api.transformations.OneInputTransformation;
 import org.apache.flink.streaming.api.transformations.TwoInputTransformation;
 import org.apache.flink.streaming.api.transformations.UnionTransformation;
+import org.apache.flink.table.api.TableException;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.runtime.operators.multipleinput.input.InputSpec;
+
+import javax.annotation.Nullable;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -64,6 +69,14 @@ public class StreamOperatorWrapperGenerator {
 	 * Reordered input transformations which order corresponds to the order of {@link #inputSpecs}.
 	 */
 	private final List<Transformation<?>> orderedInputTransforms;
+
+	/**
+	 * The {@link KeySelector}s corresponding to each ordered input transformation.
+	 */
+	private final List<KeySelector<?, ?>> orderedKeySelectors;
+
+	@Nullable
+	private TypeInformation<?> stateKeyType;
 
 	/**
 	 * The input specs which order corresponds to the order of {@link #orderedInputTransforms}.
@@ -104,6 +117,7 @@ public class StreamOperatorWrapperGenerator {
 		this.inputSpecs = new ArrayList<>();
 		this.headOperatorWrappers = new ArrayList<>();
 		this.orderedInputTransforms = new ArrayList<>();
+		this.orderedKeySelectors = new ArrayList<>();
 		this.visitedTransforms = new IdentityHashMap<>();
 	}
 
@@ -111,11 +125,21 @@ public class StreamOperatorWrapperGenerator {
 		tailOperatorWrapper = visit(tailTransform);
 		checkState(orderedInputTransforms.size() == inputTransforms.size());
 		checkState(orderedInputTransforms.size() == inputSpecs.size());
+		checkState(orderedInputTransforms.size() == orderedKeySelectors.size());
 		calculateManagedMemoryFraction();
 	}
 
 	public List<Transformation<?>> getOrderedInputTransforms() {
 		return orderedInputTransforms;
+	}
+
+	public List<KeySelector<?, ?>> getOrderedKeySelectors() {
+		return orderedKeySelectors;
+	}
+
+	@Nullable
+	public TypeInformation<?> getStateKeyType() {
+		return stateKeyType;
 	}
 
 	public List<InputSpec> getInputSpecs() {
@@ -203,6 +227,8 @@ public class StreamOperatorWrapperGenerator {
 		int inputIdx = inputTransforms.indexOf(input);
 		if (inputIdx >= 0) {
 			orderedInputTransforms.add(input);
+			orderedKeySelectors.add(transform.getStateKeySelector());
+			checkAndSetStateKeyType(transform.getStateKeyType());
 			inputSpecs.add(createInputSpec(readOrders[inputIdx], wrapper, 1));
 			headOperatorWrappers.add(wrapper);
 		} else {
@@ -227,20 +253,24 @@ public class StreamOperatorWrapperGenerator {
 
 		if (inputIdx1 >= 0 && inputIdx2 >= 0) {
 			orderedInputTransforms.add(input1);
+			orderedKeySelectors.add(transform.getStateKeySelector1());
 			inputSpecs.add(createInputSpec(readOrders[inputIdx1], wrapper, 1));
 			orderedInputTransforms.add(input2);
+			orderedKeySelectors.add(transform.getStateKeySelector2());
 			inputSpecs.add(createInputSpec(readOrders[inputIdx2], wrapper, 2));
 			headOperatorWrappers.add(wrapper);
 		} else if (inputIdx1 >= 0) {
 			StreamOperatorWrapper<?> inputWrapper = visit(input2);
 			wrapper.addInput(inputWrapper, 2);
 			orderedInputTransforms.add(input1);
+			orderedKeySelectors.add(transform.getStateKeySelector1());
 			inputSpecs.add(createInputSpec(readOrders[inputIdx1], wrapper, 1));
 			headOperatorWrappers.add(wrapper);
 		} else if (inputIdx2 >= 0) {
 			StreamOperatorWrapper<?> inputWrapper = visit(input1);
 			wrapper.addInput(inputWrapper, 1);
 			orderedInputTransforms.add(input2);
+			orderedKeySelectors.add(transform.getStateKeySelector2());
 			inputSpecs.add(createInputSpec(readOrders[inputIdx2], wrapper, 2));
 			headOperatorWrappers.add(wrapper);
 		} else {
@@ -249,6 +279,10 @@ public class StreamOperatorWrapperGenerator {
 			StreamOperatorWrapper<?> inputWrapper2 = visit(input2);
 			wrapper.addInput(inputWrapper2, 2);
 		}
+		if (inputIdx1 >= 0 || inputIdx2 >= 0) {
+			checkAndSetStateKeyType(transform.getStateKeyType());
+		}
+
 		return wrapper;
 	}
 
@@ -265,6 +299,7 @@ public class StreamOperatorWrapperGenerator {
 		for (Transformation<RowData> input : transform.getInputs()) {
 			int inputIdx = inputTransforms.indexOf(input);
 			if (inputIdx >= 0) {
+				// TODO union should not be input ?
 				isHeadOperator = true;
 				orderedInputTransforms.add(input);
 				inputSpecs.add(createInputSpec(readOrders[inputIdx], wrapper, 1)); // always 1 here
@@ -295,6 +330,16 @@ public class StreamOperatorWrapperGenerator {
 				fraction = entry.getKey().getManagedMemoryWeight() * 1.0 / this.managedMemoryWeight;
 			}
 			entry.getValue().setManagedMemoryFraction(fraction);
+		}
+	}
+
+	private void checkAndSetStateKeyType(TypeInformation<?> target) {
+		if (stateKeyType != null) {
+			if (!stateKeyType.equals(target)) {
+				throw new TableException("This should not happen.");
+			}
+		} else {
+			stateKeyType = target;
 		}
 	}
 }

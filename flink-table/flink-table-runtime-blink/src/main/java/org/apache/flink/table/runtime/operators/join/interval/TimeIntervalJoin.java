@@ -28,10 +28,10 @@ import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.typeutils.ListTypeInfo;
 import org.apache.flink.api.java.typeutils.TupleTypeInfo;
 import org.apache.flink.configuration.Configuration;
-import org.apache.flink.streaming.api.functions.co.KeyedCoProcessFunction;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.runtime.generated.GeneratedFunction;
 import org.apache.flink.table.runtime.operators.join.FlinkJoinType;
+import org.apache.flink.table.runtime.operators.join.KeyedCoProcessOperatorWithStateNameAware;
 import org.apache.flink.table.runtime.operators.join.OuterJoinPaddingUtil;
 import org.apache.flink.table.runtime.typeutils.InternalTypeInfo;
 import org.apache.flink.util.Collector;
@@ -51,7 +51,7 @@ import java.util.Map;
  * "L.time between R.time + X and R.time + Y" or "R.time between L.time - Y and L.time - X"
  * X and Y might be negative or positive and X <= Y.
  */
-abstract class TimeIntervalJoin extends KeyedCoProcessFunction<RowData, RowData, RowData, RowData> {
+abstract class TimeIntervalJoin extends KeyedCoProcessOperatorWithStateNameAware<RowData, RowData, RowData, RowData> {
 	private static final Logger LOGGER = LoggerFactory.getLogger(TimeIntervalJoin.class);
 	private final FlinkJoinType joinType;
 	protected final long leftRelativeSize;
@@ -122,7 +122,7 @@ abstract class TimeIntervalJoin extends KeyedCoProcessFunction<RowData, RowData,
 		ListTypeInfo<Tuple2<RowData, Boolean>> leftRowListTypeInfo = new ListTypeInfo<>(
 				new TupleTypeInfo<>(leftType, BasicTypeInfo.BOOLEAN_TYPE_INFO));
 		MapStateDescriptor<Long, List<Tuple2<RowData, Boolean>>> leftMapStateDescriptor = new MapStateDescriptor<>(
-				"IntervalJoinLeftCache",
+				getStateNameContext().getUniqueStateName("IntervalJoinLeftCache"),
 				BasicTypeInfo.LONG_TYPE_INFO,
 				leftRowListTypeInfo);
 		leftCache = getRuntimeContext().getMapState(leftMapStateDescriptor);
@@ -130,19 +130,19 @@ abstract class TimeIntervalJoin extends KeyedCoProcessFunction<RowData, RowData,
 		ListTypeInfo<Tuple2<RowData, Boolean>> rightRowListTypeInfo = new ListTypeInfo<>(
 				new TupleTypeInfo<>(rightType, BasicTypeInfo.BOOLEAN_TYPE_INFO));
 		MapStateDescriptor<Long, List<Tuple2<RowData, Boolean>>> rightMapStateDescriptor = new MapStateDescriptor<>(
-				"IntervalJoinRightCache",
+				getStateNameContext().getUniqueStateName("IntervalJoinRightCache"),
 				BasicTypeInfo.LONG_TYPE_INFO,
 				rightRowListTypeInfo);
 		rightCache = getRuntimeContext().getMapState(rightMapStateDescriptor);
 
 		// Initialize the timer states.
 		ValueStateDescriptor<Long> leftValueStateDescriptor = new ValueStateDescriptor<>(
-				"IntervalJoinLeftTimerState",
+				getStateNameContext().getUniqueStateName("IntervalJoinLeftTimerState"),
 				Long.class);
 		leftTimerState = getRuntimeContext().getState(leftValueStateDescriptor);
 
 		ValueStateDescriptor<Long> rightValueStateDescriptor = new ValueStateDescriptor<>(
-				"IntervalJoinRightTimerState",
+				getStateNameContext().getUniqueStateName("IntervalJoinRightTimerState"),
 				Long.class);
 		rightTimerState = getRuntimeContext().getState(rightValueStateDescriptor);
 

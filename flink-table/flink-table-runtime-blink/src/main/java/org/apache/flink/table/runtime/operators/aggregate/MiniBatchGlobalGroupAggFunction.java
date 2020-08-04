@@ -132,7 +132,8 @@ public class MiniBatchGlobalGroupAggFunction extends MapBundleFunction<RowData, 
 		equaliser = genRecordEqualiser.newInstance(ctx.getRuntimeContext().getUserCodeClassLoader());
 
 		InternalTypeInfo<RowData> accTypeInfo = InternalTypeInfo.ofFields(accTypes);
-		ValueStateDescriptor<RowData> accDesc = new ValueStateDescriptor<>("accState", accTypeInfo);
+		ValueStateDescriptor<RowData> accDesc = new ValueStateDescriptor<>(
+				getStateNameContext().getUniqueStateName("accState"), accTypeInfo);
 		accState = ctx.getRuntimeContext().getState(accDesc);
 
 		resultRow = new JoinedRowData();

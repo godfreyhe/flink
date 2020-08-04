@@ -72,7 +72,7 @@ public class ProcTimeUnboundedPrecedingFunction<K> extends KeyedProcessFunctionW
 
 		InternalTypeInfo<RowData> accTypeInfo = InternalTypeInfo.ofFields(accTypes);
 		ValueStateDescriptor<RowData> stateDescriptor =
-			new ValueStateDescriptor<RowData>("accState", accTypeInfo);
+			new ValueStateDescriptor<>(getStateNameContext().getUniqueStateName("accState"), accTypeInfo);
 		accState = getRuntimeContext().getState(stateDescriptor);
 
 		initCleanupTimeState("ProcTimeUnboundedOverCleanupTime");

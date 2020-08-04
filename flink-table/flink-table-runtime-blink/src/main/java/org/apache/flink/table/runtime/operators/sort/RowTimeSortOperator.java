@@ -85,10 +85,11 @@ public class RowTimeSortOperator extends BaseTemporalSortOperator {
 		BasicTypeInfo<Long> keyTypeInfo = BasicTypeInfo.LONG_TYPE_INFO;
 		ListTypeInfo<RowData> valueTypeInfo = new ListTypeInfo<>(inputRowType);
 		MapStateDescriptor<Long, List<RowData>> mapStateDescriptor = new MapStateDescriptor<>(
-				"dataState", keyTypeInfo, valueTypeInfo);
+				getStateNameContext().getUniqueStateName("dataState"), keyTypeInfo, valueTypeInfo);
 		dataState = getRuntimeContext().getMapState(mapStateDescriptor);
 
-		ValueStateDescriptor<Long> lastTriggeringTsDescriptor = new ValueStateDescriptor<>("lastTriggeringTsState",
+		ValueStateDescriptor<Long> lastTriggeringTsDescriptor = new ValueStateDescriptor<>(
+				getStateNameContext().getUniqueStateName("lastTriggeringTsState"),
 				Long.class);
 		lastTriggeringTsState = getRuntimeContext().getState(lastTriggeringTsDescriptor);
 	}

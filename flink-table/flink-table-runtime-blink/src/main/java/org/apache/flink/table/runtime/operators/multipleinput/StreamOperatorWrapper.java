@@ -220,6 +220,10 @@ public class StreamOperatorWrapper<OP extends StreamOperator<RowData>> implement
 		wrapped.close();
 	}
 
+	public String getOperatorName() {
+		return name;
+	}
+
 	@Override
 	public String toString() {
 		return name;

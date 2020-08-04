@@ -19,19 +19,23 @@
 package org.apache.flink.table.planner.delegation
 
 import org.apache.flink.api.dag.Transformation
+import org.apache.flink.table.api.config.OptimizerConfigOptions
 import org.apache.flink.table.api.{ExplainDetail, TableConfig, TableException, TableSchema}
 import org.apache.flink.table.catalog.{CatalogManager, FunctionCatalog, ObjectIdentifier}
 import org.apache.flink.table.delegation.Executor
 import org.apache.flink.table.operations.{CatalogSinkModifyOperation, ModifyOperation, Operation, QueryOperation}
 import org.apache.flink.table.planner.operations.PlannerQueryOperation
 import org.apache.flink.table.planner.plan.`trait`._
+import org.apache.flink.table.planner.plan.multipleinput.MultipleInputNodeCreationProcessor
 import org.apache.flink.table.planner.plan.nodes.exec.{ExecNode, StreamExecNode}
+import org.apache.flink.table.planner.plan.nodes.process.DAGProcessContext
 import org.apache.flink.table.planner.plan.optimize.{Optimizer, StreamCommonSubGraphBasedOptimizer}
 import org.apache.flink.table.planner.plan.utils.{ExecNodePlanDumper, FlinkRelOptUtil}
 import org.apache.flink.table.planner.sinks.{SelectTableSinkBase, StreamSelectTableSink}
 import org.apache.flink.table.planner.utils.{DummyStreamExecutionEnvironment, ExecutorUtils, PlanUtil}
 
 import org.apache.calcite.plan.{ConventionTraitDef, RelTrait, RelTraitDef}
+import org.apache.calcite.rel.RelNode
 import org.apache.calcite.rel.logical.LogicalTableModify
 import org.apache.calcite.sql.SqlExplainLevel
 
@@ -67,6 +71,19 @@ class StreamPlanner(
       case _ =>
         throw new TableException("Cannot generate DataStream due to an invalid logical plan. " +
           "This is a bug and should not happen. Please file an issue.")
+    }
+  }
+
+  override private[flink] def translateToExecNodePlan(
+      optimizedRelNodes: Seq[RelNode]): util.List[ExecNode[_, _]] = {
+    val execNodePlan = super.translateToExecNodePlan(optimizedRelNodes)
+    val context = new DAGProcessContext(this)
+    if (config.getConfiguration.getBoolean(
+      OptimizerConfigOptions.TABLE_OPTIMIZER_MULTIPLE_INPUT_ENABLED)) {
+      new MultipleInputNodeCreationProcessor(true, config.getConfiguration)
+        .process(execNodePlan, context)
+    } else {
+      execNodePlan
     }
   }
 

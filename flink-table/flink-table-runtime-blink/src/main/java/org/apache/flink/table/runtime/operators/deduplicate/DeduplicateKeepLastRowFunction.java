@@ -22,8 +22,8 @@ import org.apache.flink.api.common.state.StateTtlConfig;
 import org.apache.flink.api.common.state.ValueState;
 import org.apache.flink.api.common.state.ValueStateDescriptor;
 import org.apache.flink.configuration.Configuration;
-import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 import org.apache.flink.table.data.RowData;
+import org.apache.flink.table.runtime.functions.KeyedProcessFunctionWithStateNameAware;
 import org.apache.flink.table.runtime.typeutils.InternalTypeInfo;
 import org.apache.flink.util.Collector;
 
@@ -34,7 +34,7 @@ import static org.apache.flink.table.runtime.util.StateTtlConfigUtil.createTtlCo
  * This function is used to deduplicate on keys and keeps only last row.
  */
 public class DeduplicateKeepLastRowFunction
-		extends KeyedProcessFunction<RowData, RowData, RowData> {
+		extends KeyedProcessFunctionWithStateNameAware<RowData, RowData, RowData> {
 
 	private static final long serialVersionUID = -291348892087180350L;
 	private final InternalTypeInfo<RowData> rowTypeInfo;
@@ -59,7 +59,8 @@ public class DeduplicateKeepLastRowFunction
 	@Override
 	public void open(Configuration configure) throws Exception {
 		super.open(configure);
-		ValueStateDescriptor<RowData> stateDesc = new ValueStateDescriptor<>("preRowState", rowTypeInfo);
+		ValueStateDescriptor<RowData> stateDesc = new ValueStateDescriptor<>(
+				getStateNameContext().getUniqueStateName("preRowState"), rowTypeInfo);
 		StateTtlConfig ttlConfig = createTtlConfig(minRetentionTime);
 		if (ttlConfig.isEnabled()) {
 			stateDesc.enableTimeToLive(ttlConfig);

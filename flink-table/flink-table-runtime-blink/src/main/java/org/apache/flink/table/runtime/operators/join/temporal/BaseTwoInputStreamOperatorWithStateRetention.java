@@ -25,12 +25,12 @@ import org.apache.flink.api.common.typeinfo.Types;
 import org.apache.flink.runtime.state.VoidNamespace;
 import org.apache.flink.runtime.state.VoidNamespaceSerializer;
 import org.apache.flink.streaming.api.SimpleTimerService;
-import org.apache.flink.streaming.api.operators.AbstractStreamOperator;
 import org.apache.flink.streaming.api.operators.InternalTimer;
 import org.apache.flink.streaming.api.operators.InternalTimerService;
 import org.apache.flink.streaming.api.operators.Triggerable;
 import org.apache.flink.streaming.api.operators.TwoInputStreamOperator;
 import org.apache.flink.table.data.RowData;
+import org.apache.flink.table.runtime.operators.AbstractStreamOperatorWithStateNameAware;
 
 import java.io.IOException;
 import java.util.Optional;
@@ -57,7 +57,7 @@ import java.util.Optional;
  */
 @Internal
 public abstract class BaseTwoInputStreamOperatorWithStateRetention
-	extends AbstractStreamOperator<RowData>
+	extends AbstractStreamOperatorWithStateNameAware<RowData>
 	implements TwoInputStreamOperator<RowData, RowData, RowData>, Triggerable<Object, VoidNamespace> {
 
 	private static final long serialVersionUID = -5953921797477294258L;
@@ -84,7 +84,7 @@ public abstract class BaseTwoInputStreamOperatorWithStateRetention
 
 		if (stateCleaningEnabled) {
 			ValueStateDescriptor<Long> cleanupStateDescriptor =
-				new ValueStateDescriptor<>(CLEANUP_TIMESTAMP, Types.LONG);
+				new ValueStateDescriptor<>(getStateNameContext().getUniqueStateName(CLEANUP_TIMESTAMP), Types.LONG);
 			latestRegisteredCleanupTimer = getRuntimeContext().getState(cleanupStateDescriptor);
 		}
 	}

@@ -58,7 +58,8 @@ public class MiniBatchDeduplicateKeepFirstRowFunction
 	@Override
 	public void open(ExecutionContext ctx) throws Exception {
 		super.open(ctx);
-		ValueStateDescriptor<Boolean> stateDesc = new ValueStateDescriptor<>("existsState", Types.BOOLEAN);
+		ValueStateDescriptor<Boolean> stateDesc = new ValueStateDescriptor<>(
+				getStateNameContext().getUniqueStateName("existsState"), Types.BOOLEAN);
 		StateTtlConfig ttlConfig = createTtlConfig(minRetentionTime);
 		if (ttlConfig.isEnabled()) {
 			stateDesc.enableTimeToLive(ttlConfig);

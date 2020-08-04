@@ -121,7 +121,7 @@ public class UpdatableTopNFunction extends AbstractTopNFunction implements Check
 
 		TupleTypeInfo<Tuple2<RowData, Integer>> valueTypeInfo = new TupleTypeInfo<>(inputRowType, Types.INT);
 		MapStateDescriptor<RowData, Tuple2<RowData, Integer>> mapStateDescriptor = new MapStateDescriptor<>(
-				"data-state-with-update", rowKeyType, valueTypeInfo);
+				getStateNameContext().getUniqueStateName("data-state-with-update"), rowKeyType, valueTypeInfo);
 		dataState = getRuntimeContext().getMapState(mapStateDescriptor);
 
 		// metrics

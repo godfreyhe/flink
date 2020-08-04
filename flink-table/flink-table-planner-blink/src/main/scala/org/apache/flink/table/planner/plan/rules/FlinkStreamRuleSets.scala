@@ -437,7 +437,11 @@ object FlinkStreamRuleSets {
     //optimize agg rule
     TwoStageOptimizedAggregateRule.INSTANCE,
     // incremental agg rule
-    IncrementalAggregateRule.INSTANCE
+    IncrementalAggregateRule.INSTANCE,
+    // TODO temporary solution for testing
+    StreamExecRemoveExchangeRule.INSTANCE1,
+    StreamExecRemoveExchangeRule.INSTANCE2,
+    StreamExecRemoveExchangeRule.INSTANCE3
   )
 
 }

@@ -109,11 +109,11 @@ public class RetractableTopNFunction extends AbstractTopNFunction {
 
 		ListTypeInfo<RowData> valueTypeInfo = new ListTypeInfo<>(inputRowType);
 		MapStateDescriptor<RowData, List<RowData>> mapStateDescriptor = new MapStateDescriptor<>(
-				"data-state", sortKeyType, valueTypeInfo);
+				getStateNameContext().getUniqueStateName("data-state"), sortKeyType, valueTypeInfo);
 		dataState = getRuntimeContext().getMapState(mapStateDescriptor);
 
 		ValueStateDescriptor<SortedMap<RowData, Long>> valueStateDescriptor = new ValueStateDescriptor<>(
-				"sorted-map",
+				getStateNameContext().getUniqueStateName("sorted-map"),
 				new SortedMapTypeInfo<>(sortKeyType, BasicTypeInfo.LONG_TYPE_INFO, serializableComparator));
 		treeMap = getRuntimeContext().getState(valueStateDescriptor);
 	}

@@ -23,8 +23,8 @@ import org.apache.flink.api.common.state.ValueState;
 import org.apache.flink.api.common.state.ValueStateDescriptor;
 import org.apache.flink.api.common.typeinfo.Types;
 import org.apache.flink.configuration.Configuration;
-import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 import org.apache.flink.table.data.RowData;
+import org.apache.flink.table.runtime.functions.KeyedProcessFunctionWithStateNameAware;
 import org.apache.flink.util.Collector;
 
 import static org.apache.flink.table.runtime.operators.deduplicate.DeduplicateFunctionHelper.processFirstRow;
@@ -34,7 +34,7 @@ import static org.apache.flink.table.runtime.util.StateTtlConfigUtil.createTtlCo
  * This function is used to deduplicate on keys and keeps only first row.
  */
 public class DeduplicateKeepFirstRowFunction
-		extends KeyedProcessFunction<RowData, RowData, RowData> {
+		extends KeyedProcessFunctionWithStateNameAware<RowData, RowData, RowData> {
 
 	private static final long serialVersionUID = 5865777137707602549L;
 
@@ -49,7 +49,8 @@ public class DeduplicateKeepFirstRowFunction
 	@Override
 	public void open(Configuration configure) throws Exception {
 		super.open(configure);
-		ValueStateDescriptor<Boolean> stateDesc = new ValueStateDescriptor<>("existsState", Types.BOOLEAN);
+		ValueStateDescriptor<Boolean> stateDesc = new ValueStateDescriptor<>(
+				getStateNameContext().getUniqueStateName("existsState"), Types.BOOLEAN);
 		StateTtlConfig ttlConfig = createTtlConfig(minRetentionTime);
 		if (ttlConfig.isEnabled()) {
 			stateDesc.enableTimeToLive(ttlConfig);

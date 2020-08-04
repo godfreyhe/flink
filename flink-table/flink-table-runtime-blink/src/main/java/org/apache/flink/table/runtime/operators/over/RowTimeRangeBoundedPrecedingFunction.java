@@ -31,6 +31,7 @@ import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 import org.apache.flink.table.data.JoinedRowData;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.runtime.dataview.PerKeyStateDataViewStore;
+import org.apache.flink.table.runtime.functions.KeyedProcessFunctionWithStateNameAware;
 import org.apache.flink.table.runtime.generated.AggsHandleFunction;
 import org.apache.flink.table.runtime.generated.GeneratedAggsHandleFunction;
 import org.apache.flink.table.runtime.typeutils.InternalTypeInfo;
@@ -58,7 +59,8 @@ import java.util.List;
  * RANGE BETWEEN INTERVAL '4' SECOND PRECEDING AND CURRENT ROW)
  * FROM T.
  */
-public class RowTimeRangeBoundedPrecedingFunction<K> extends KeyedProcessFunction<K, RowData, RowData> {
+public class RowTimeRangeBoundedPrecedingFunction<K>
+		extends KeyedProcessFunctionWithStateNameAware<K, RowData, RowData> {
 	private static final long serialVersionUID = 1L;
 
 	private static final Logger LOG = LoggerFactory.getLogger(RowTimeRangeBoundedPrecedingFunction.class);
@@ -121,25 +123,26 @@ public class RowTimeRangeBoundedPrecedingFunction<K> extends KeyedProcessFunctio
 		output = new JoinedRowData();
 
 		ValueStateDescriptor<Long> lastTriggeringTsDescriptor = new ValueStateDescriptor<Long>(
-			"lastTriggeringTsState",
+			getStateNameContext().getUniqueStateName("lastTriggeringTsState"),
 			Types.LONG);
 		lastTriggeringTsState = getRuntimeContext().getState(lastTriggeringTsDescriptor);
 
 		InternalTypeInfo<RowData> accTypeInfo = InternalTypeInfo.ofFields(accTypes);
-		ValueStateDescriptor<RowData> accStateDesc = new ValueStateDescriptor<RowData>("accState", accTypeInfo);
+		ValueStateDescriptor<RowData> accStateDesc = new ValueStateDescriptor<>(
+			getStateNameContext().getUniqueStateName("accState"), accTypeInfo);
 		accState = getRuntimeContext().getState(accStateDesc);
 
 		// input element are all binary row as they are came from network
 		InternalTypeInfo<RowData> inputType = InternalTypeInfo.ofFields(inputFieldTypes);
 		ListTypeInfo<RowData> rowListTypeInfo = new ListTypeInfo<RowData>(inputType);
 		MapStateDescriptor<Long, List<RowData>> inputStateDesc = new MapStateDescriptor<Long, List<RowData>>(
-			"inputState",
+			getStateNameContext().getUniqueStateName("inputState"),
 			Types.LONG,
 			rowListTypeInfo);
 		inputState = getRuntimeContext().getMapState(inputStateDesc);
 
 		ValueStateDescriptor<Long> cleanupTsStateDescriptor = new ValueStateDescriptor<>(
-			"cleanupTsState",
+			getStateNameContext().getUniqueStateName("cleanupTsState"),
 			Types.LONG
 		);
 		this.cleanupTsState = getRuntimeContext().getState(cleanupTsStateDescriptor);

@@ -67,7 +67,8 @@ public class TemporalProcessTimeJoinOperator
 		FunctionUtils.setFunctionRuntimeContext(joinCondition, getRuntimeContext());
 		FunctionUtils.openFunction(joinCondition, new Configuration());
 
-		ValueStateDescriptor<RowData> rightStateDesc = new ValueStateDescriptor<>("right", rightType);
+		ValueStateDescriptor<RowData> rightStateDesc = new ValueStateDescriptor<>(
+				getStateNameContext().getUniqueStateName("right"), rightType);
 		this.rightState = getRuntimeContext().getState(rightStateDesc);
 		this.collector = new TimestampedCollector<>(output);
 		this.outRow = new JoinedRowData();

@@ -24,6 +24,8 @@ import org.apache.flink.api.common.state.ValueStateDescriptor;
 import org.apache.flink.api.common.typeinfo.Types;
 import org.apache.flink.streaming.api.TimeDomain;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
+import org.apache.flink.table.runtime.operators.StateNameAware;
+import org.apache.flink.table.runtime.operators.StateNameContext;
 
 import java.io.IOException;
 
@@ -34,7 +36,7 @@ import java.io.IOException;
  * @param <OUT> Type of the output elements.
  */
 public abstract class KeyedProcessFunctionWithCleanupState<K, IN, OUT>
-	extends KeyedProcessFunction<K, IN, OUT> implements CleanupState {
+	extends KeyedProcessFunction<K, IN, OUT> implements CleanupState, StateNameAware {
 
 	private static final long serialVersionUID = 2084560869233898457L;
 
@@ -44,6 +46,7 @@ public abstract class KeyedProcessFunctionWithCleanupState<K, IN, OUT>
 
 	// holds the latest registered cleanup timer
 	private ValueState<Long> cleanupTimeState;
+	private StateNameContext stateNameContext = new StateNameContext();
 
 	public KeyedProcessFunctionWithCleanupState(long minRetentionTime, long maxRetentionTime) {
 		this.minRetentionTime = minRetentionTime;
@@ -53,7 +56,8 @@ public abstract class KeyedProcessFunctionWithCleanupState<K, IN, OUT>
 
 	protected void initCleanupTimeState(String stateName) {
 		if (stateCleaningEnabled) {
-			ValueStateDescriptor<Long> inputCntDescriptor = new ValueStateDescriptor<>(stateName, Types.LONG);
+			ValueStateDescriptor<Long> inputCntDescriptor = new ValueStateDescriptor<>(
+					getStateNameContext().getUniqueStateName(stateName), Types.LONG);
 			cleanupTimeState = getRuntimeContext().getState(inputCntDescriptor);
 		}
 	}
@@ -89,5 +93,15 @@ public abstract class KeyedProcessFunctionWithCleanupState<K, IN, OUT>
 		} else {
 			return false;
 		}
+	}
+
+	@Override
+	public StateNameContext getStateNameContext() {
+		return stateNameContext;
+	}
+
+	@Override
+	public void setStateNameContext(StateNameContext context) {
+		this.stateNameContext = context;
 	}
 }

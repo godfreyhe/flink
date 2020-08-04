@@ -125,24 +125,25 @@ public class RowTimeRowsBoundedPrecedingFunction<K> extends KeyedProcessFunction
 		output = new JoinedRowData();
 
 		ValueStateDescriptor<Long> lastTriggeringTsDescriptor = new ValueStateDescriptor<Long>(
-			"lastTriggeringTsState",
+			getStateNameContext().getUniqueStateName("lastTriggeringTsState"),
 			Types.LONG);
 		lastTriggeringTsState = getRuntimeContext().getState(lastTriggeringTsDescriptor);
 
 		ValueStateDescriptor<Long> dataCountStateDescriptor = new ValueStateDescriptor<Long>(
-			"processedCountState",
+			getStateNameContext().getUniqueStateName("processedCountState"),
 			Types.LONG);
 		counterState = getRuntimeContext().getState(dataCountStateDescriptor);
 
 		InternalTypeInfo<RowData> accTypeInfo = InternalTypeInfo.ofFields(accTypes);
-		ValueStateDescriptor<RowData> accStateDesc = new ValueStateDescriptor<RowData>("accState", accTypeInfo);
+		ValueStateDescriptor<RowData> accStateDesc = new ValueStateDescriptor<>(
+			getStateNameContext().getUniqueStateName("accState"), accTypeInfo);
 		accState = getRuntimeContext().getState(accStateDesc);
 
 		// input element are all binary row as they are came from network
 		InternalTypeInfo<RowData> inputType = InternalTypeInfo.ofFields(inputFieldTypes);
-		ListTypeInfo<RowData> rowListTypeInfo = new ListTypeInfo<RowData>(inputType);
+		ListTypeInfo<RowData> rowListTypeInfo = new ListTypeInfo<>(inputType);
 		MapStateDescriptor<Long, List<RowData>> inputStateDesc = new MapStateDescriptor<Long, List<RowData>>(
-			"inputState",
+			getStateNameContext().getUniqueStateName("inputState"),
 			Types.LONG,
 			rowListTypeInfo);
 		inputState = getRuntimeContext().getMapState(inputStateDesc);

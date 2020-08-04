@@ -106,15 +106,15 @@ public abstract class AbstractRowTimeUnboundedPrecedingOver<K> extends KeyedProc
 
 		// initialize accumulator state
 		InternalTypeInfo<RowData> accTypeInfo = InternalTypeInfo.ofFields(accTypes);
-		ValueStateDescriptor<RowData> accStateDesc =
-			new ValueStateDescriptor<RowData>("accState", accTypeInfo);
+		ValueStateDescriptor<RowData> accStateDesc = new ValueStateDescriptor<>(
+				getStateNameContext().getUniqueStateName("accState"), accTypeInfo);
 		accState = getRuntimeContext().getState(accStateDesc);
 
 		// input element are all binary row as they are came from network
 		InternalTypeInfo<RowData> inputType = InternalTypeInfo.ofFields(inputFieldTypes);
 		ListTypeInfo<RowData> rowListTypeInfo = new ListTypeInfo<RowData>(inputType);
 		MapStateDescriptor<Long, List<RowData>> inputStateDesc = new MapStateDescriptor<Long, List<RowData>>(
-			"inputState",
+			getStateNameContext().getUniqueStateName("inputState"),
 			Types.LONG,
 			rowListTypeInfo);
 		inputState = getRuntimeContext().getMapState(inputStateDesc);

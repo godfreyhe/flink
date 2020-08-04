@@ -67,7 +67,8 @@ public class MiniBatchDeduplicateKeepLastRowFunction
 	@Override
 	public void open(ExecutionContext ctx) throws Exception {
 		super.open(ctx);
-		ValueStateDescriptor<RowData> stateDesc = new ValueStateDescriptor<>("preRowState", rowTypeInfo);
+		ValueStateDescriptor<RowData> stateDesc = new ValueStateDescriptor<>(
+				getStateNameContext().getUniqueStateName("preRowState"), rowTypeInfo);
 		StateTtlConfig ttlConfig = createTtlConfig(minRetentionTime);
 		if (ttlConfig.isEnabled()) {
 			stateDesc.enableTimeToLive(ttlConfig);

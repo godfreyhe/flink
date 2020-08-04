@@ -142,7 +142,8 @@ public abstract class AbstractTopNFunction extends KeyedProcessFunctionWithClean
 		outputRow = new JoinedRowData();
 
 		if (!isConstantRankEnd) {
-			ValueStateDescriptor<Long> rankStateDesc = new ValueStateDescriptor<>("rankEnd", Types.LONG);
+			ValueStateDescriptor<Long> rankStateDesc = new ValueStateDescriptor<>(
+					getStateNameContext().getUniqueStateName("rankEnd"), Types.LONG);
 			rankEndState = getRuntimeContext().getState(rankStateDesc);
 		}
 		// compile comparator
