@@ -41,9 +41,9 @@ public class StreamMultipleInputStreamOperator extends MultipleInputStreamOperat
 	public StreamMultipleInputStreamOperator(
 			StreamOperatorParameters<RowData> parameters,
 			List<InputSpec> inputSpecs,
-			List<StreamOperatorWrapper<?>> headOperatorWrappers,
-			StreamOperatorWrapper<?> tailOperatorWrapper) {
-		super(parameters, inputSpecs, headOperatorWrappers, tailOperatorWrapper);
+			List<StreamOperatorNode<?>> headNodes,
+			StreamOperatorNode<?> tailNode) {
+		super(parameters, inputSpecs, headNodes, tailNode);
 	}
 
 	@SuppressWarnings("rawtypes")
@@ -51,7 +51,7 @@ public class StreamMultipleInputStreamOperator extends MultipleInputStreamOperat
 	public void open() throws Exception {
 		// initializeState for each operator first
 		StateNameContext stateNameContext = new StateNameContext();
-		final Iterator<StreamOperatorWrapper<?>> it = topologicalOrderingOperators.descendingIterator();
+		final Iterator<StreamOperatorNode<?>> it = topologicalOrderingOperators.descendingIterator();
 		while (it.hasNext()) {
 			StreamOperator<?> operator = it.next().getStreamOperator();
 			if (operator instanceof StateNameAware) {
@@ -73,9 +73,9 @@ public class StreamMultipleInputStreamOperator extends MultipleInputStreamOperat
 		super.prepareSnapshotPreBarrier(checkpointId);
 		// go forward through the operator chain and tell each operator
 		// to prepare the checkpoint
-		for (StreamOperatorWrapper<?> wrapper : topologicalOrderingOperators) {
-			if (!wrapper.isClosed()) {
-				wrapper.getStreamOperator().prepareSnapshotPreBarrier(checkpointId);
+		for (StreamOperatorNode<?> node : topologicalOrderingOperators) {
+			if (!node.isClosed()) {
+				node.getStreamOperator().prepareSnapshotPreBarrier(checkpointId);
 			}
 		}
 	}
@@ -85,9 +85,9 @@ public class StreamMultipleInputStreamOperator extends MultipleInputStreamOperat
 		super.snapshotState(context);
 		// go forward through the operator chain and tell each operator
 		// to do snapshot
-		for (StreamOperatorWrapper<?> wrapper : topologicalOrderingOperators) {
-			if (!wrapper.isClosed()) {
-				StreamOperator<?> operator = wrapper.getStreamOperator();
+		for (StreamOperatorNode<?> node : topologicalOrderingOperators) {
+			if (!node.isClosed()) {
+				StreamOperator<?> operator = node.getStreamOperator();
 				if (operator instanceof AbstractStreamOperator) {
 					((AbstractStreamOperator<?>) operator).snapshotState(context);
 				} else if (operator instanceof AbstractStreamOperatorV2) {
@@ -104,9 +104,9 @@ public class StreamMultipleInputStreamOperator extends MultipleInputStreamOperat
 		super.notifyCheckpointComplete(checkpointId);
 		// go forward through the operator chain and tell each operator
 		// to notify checkpoint complete
-		for (StreamOperatorWrapper<?> wrapper : topologicalOrderingOperators) {
-			if (!wrapper.isClosed()) {
-				wrapper.getStreamOperator().notifyCheckpointComplete(checkpointId);
+		for (StreamOperatorNode<?> node : topologicalOrderingOperators) {
+			if (!node.isClosed()) {
+				node.getStreamOperator().notifyCheckpointComplete(checkpointId);
 			}
 		}
 	}
@@ -116,11 +116,11 @@ public class StreamMultipleInputStreamOperator extends MultipleInputStreamOperat
 		super.notifyCheckpointAborted(checkpointId);
 		// go back through the operator chain and tell each operator
 		// to notify checkpoint aborted
-		Iterator<StreamOperatorWrapper<?>> it = topologicalOrderingOperators.descendingIterator();
+		Iterator<StreamOperatorNode<?>> it = topologicalOrderingOperators.descendingIterator();
 		while (it.hasNext()) {
-			StreamOperatorWrapper<?> wrapper = it.next();
-			if (!wrapper.isClosed()) {
-				wrapper.getStreamOperator().notifyCheckpointAborted(checkpointId);
+			StreamOperatorNode<?> node = it.next();
+			if (!node.isClosed()) {
+				node.getStreamOperator().notifyCheckpointAborted(checkpointId);
 			}
 		}
 	}

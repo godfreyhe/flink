@@ -33,16 +33,16 @@ public class StreamMultipleInputStreamOperatorFactory extends AbstractStreamOper
 	private static final long serialVersionUID = 1L;
 
 	private final List<InputSpec> inputSpecs;
-	private final List<StreamOperatorWrapper<?>> headOperatorWrappers;
-	private final StreamOperatorWrapper<?> tailOperatorWrapper;
+	private final List<StreamOperatorNode<?>> headNodes;
+	private final StreamOperatorNode<?> tailNode;
 
 	public StreamMultipleInputStreamOperatorFactory(
 			List<InputSpec> inputSpecs,
-			List<StreamOperatorWrapper<?>> headOperatorWrappers,
-			StreamOperatorWrapper<?> tailOperatorWrapper) {
+			List<StreamOperatorNode<?>> headNodes,
+			StreamOperatorNode<?> tailNode) {
 		this.inputSpecs = inputSpecs;
-		this.headOperatorWrappers = headOperatorWrappers;
-		this.tailOperatorWrapper = tailOperatorWrapper;
+		this.headNodes = headNodes;
+		this.tailNode = tailNode;
 	}
 
 	@SuppressWarnings("unchecked")
@@ -51,8 +51,8 @@ public class StreamMultipleInputStreamOperatorFactory extends AbstractStreamOper
 		return (T) new StreamMultipleInputStreamOperator(
 				parameters,
 				inputSpecs,
-				headOperatorWrappers,
-				tailOperatorWrapper);
+				headNodes,
+				tailNode);
 	}
 
 	@Override

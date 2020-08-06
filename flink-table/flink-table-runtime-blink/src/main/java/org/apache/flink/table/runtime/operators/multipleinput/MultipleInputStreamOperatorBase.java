@@ -71,27 +71,27 @@ public abstract class MultipleInputStreamOperatorBase
 	/**
 	 * The head operators of this multiple input operator.
 	 */
-	protected final List<StreamOperatorWrapper<?>> headOperatorWrappers;
+	protected final List<StreamOperatorNode<?>> headNodes;
 
 	/**
 	 * The tail operator of this multiple input operator.
 	 */
-	protected final StreamOperatorWrapper<?> tailOperatorWrapper;
+	protected final StreamOperatorNode<?> tailNode;
 
 	/**
 	 * all operator as topological ordering in this multiple input operator.
 	 */
-	protected final Deque<StreamOperatorWrapper<?>> topologicalOrderingOperators;
+	protected final Deque<StreamOperatorNode<?>> topologicalOrderingOperators;
 
 	public MultipleInputStreamOperatorBase(
 			StreamOperatorParameters<RowData> parameters,
 			List<InputSpec> inputSpecs,
-			List<StreamOperatorWrapper<?>> headOperatorWrappers,
-			StreamOperatorWrapper<?> tailOperatorWrapper) {
+			List<StreamOperatorNode<?>> headNodes,
+			StreamOperatorNode<?> tailNode) {
 		super(parameters, inputSpecs.size());
 		this.inputSpecs = inputSpecs;
-		this.headOperatorWrappers = headOperatorWrappers;
-		this.tailOperatorWrapper = tailOperatorWrapper;
+		this.headNodes = headNodes;
+		this.tailNode = tailNode;
 		// get all operator list as topological ordering
 		this.topologicalOrderingOperators = getAllOperatorsAsTopologicalOrdering();
 		// create all operators by corresponding operator factory
@@ -131,7 +131,7 @@ public abstract class MultipleInputStreamOperatorBase
 	@Override
 	public void open() throws Exception {
 		super.open();
-		final Iterator<StreamOperatorWrapper<?>> it = topologicalOrderingOperators.descendingIterator();
+		final Iterator<StreamOperatorNode<?>> it = topologicalOrderingOperators.descendingIterator();
 		while (it.hasNext()) {
 			StreamOperator<?> operator = it.next().getStreamOperator();
 			operator.open();
@@ -146,8 +146,8 @@ public abstract class MultipleInputStreamOperatorBase
 	@Override
 	public void close() throws Exception {
 		super.close();
-		for (StreamOperatorWrapper<?> wrapper : topologicalOrderingOperators) {
-			wrapper.close();
+		for (StreamOperatorNode<?> node : topologicalOrderingOperators) {
+			node.close();
 		}
 	}
 
@@ -159,32 +159,32 @@ public abstract class MultipleInputStreamOperatorBase
 	@Override
 	public void dispose() throws Exception {
 		super.dispose();
-		for (StreamOperatorWrapper<?> wrapper : topologicalOrderingOperators) {
-			StreamOperator<?> operator = wrapper.getStreamOperator();
+		for (StreamOperatorNode<?> node : topologicalOrderingOperators) {
+			StreamOperator<?> operator = node.getStreamOperator();
 			operator.dispose();
 		}
 	}
 
-	private Deque<StreamOperatorWrapper<?>> getAllOperatorsAsTopologicalOrdering() {
-		final Deque<StreamOperatorWrapper<?>> allOperators = new ArrayDeque<>();
-		final Queue<StreamOperatorWrapper<?>> toVisitOperators = new LinkedList<>();
+	private Deque<StreamOperatorNode<?>> getAllOperatorsAsTopologicalOrdering() {
+		final Deque<StreamOperatorNode<?>> allOperators = new ArrayDeque<>();
+		final Queue<StreamOperatorNode<?>> toVisitOperators = new LinkedList<>();
 
 		// mapping an operator to its input count
-		final Map<StreamOperatorWrapper<?>, Integer> operatorToInputCount = buildOperatorToInputCountMap();
+		final Map<StreamOperatorNode<?>, Integer> operatorToInputCount = buildOperatorToInputCountMap();
 
 		// find the operators which all inputs are not in this multiple input operator to traverse first
-		for (StreamOperatorWrapper<?> wrapper : headOperatorWrappers) {
-			if (operatorToInputCount.get(wrapper) == 0) {
-				toVisitOperators.add(wrapper);
+		for (StreamOperatorNode<?> node : headNodes) {
+			if (operatorToInputCount.get(node) == 0) {
+				toVisitOperators.add(node);
 			}
 		}
 		checkArgument(!toVisitOperators.isEmpty(), "This should not happen.");
 
 		while (!toVisitOperators.isEmpty()) {
-			StreamOperatorWrapper<?> wrapper = toVisitOperators.poll();
-			allOperators.add(wrapper);
+			StreamOperatorNode<?> node = toVisitOperators.poll();
+			allOperators.add(node);
 
-			for (StreamOperatorWrapper<?> output : wrapper.getOutputWrappers()) {
+			for (StreamOperatorNode<?> output : node.getOutputNodes()) {
 				int inputCountRemaining = operatorToInputCount.get(output) - 1;
 				operatorToInputCount.put(output, inputCountRemaining);
 				if (inputCountRemaining == 0) {
@@ -196,15 +196,15 @@ public abstract class MultipleInputStreamOperatorBase
 		return allOperators;
 	}
 
-	private Map<StreamOperatorWrapper<?>, Integer> buildOperatorToInputCountMap() {
-		final Map<StreamOperatorWrapper<?>, Integer> operatorToInputCount = new IdentityHashMap<>();
-		final Queue<StreamOperatorWrapper<?>> toVisitOperators = new LinkedList<>();
-		toVisitOperators.add(tailOperatorWrapper);
+	private Map<StreamOperatorNode<?>, Integer> buildOperatorToInputCountMap() {
+		final Map<StreamOperatorNode<?>, Integer> operatorToInputCount = new IdentityHashMap<>();
+		final Queue<StreamOperatorNode<?>> toVisitOperators = new LinkedList<>();
+		toVisitOperators.add(tailNode);
 
 		while (!toVisitOperators.isEmpty()) {
-			StreamOperatorWrapper<?> wrapper = toVisitOperators.poll();
-			List<StreamOperatorWrapper<?>> inputs = wrapper.getInputWrappers();
-			operatorToInputCount.put(wrapper, inputs.size());
+			StreamOperatorNode<?> node = toVisitOperators.poll();
+			List<StreamOperatorNode<?>> inputs = node.getInputNodes();
+			operatorToInputCount.put(node, inputs.size());
 			toVisitOperators.addAll(inputs);
 		}
 
@@ -218,19 +218,18 @@ public abstract class MultipleInputStreamOperatorBase
 	private void createAllOperators(StreamOperatorParameters<RowData> parameters) {
 		final boolean isObjectReuseEnabled = parameters.getContainingTask().getExecutionConfig().isObjectReuseEnabled();
 		final ExecutionConfig executionConfig = parameters.getContainingTask().getExecutionConfig();
-		final Iterator<StreamOperatorWrapper<?>> it = topologicalOrderingOperators.descendingIterator();
-		int index = 0;
+		final Iterator<StreamOperatorNode<?>> it = topologicalOrderingOperators.descendingIterator();
 
 		while (it.hasNext()) {
-			final StreamOperatorWrapper<?> wrapper = it.next();
+			final StreamOperatorNode<?> node = it.next();
 			final Output<StreamRecord<RowData>> output;
-			if (wrapper == this.tailOperatorWrapper) {
+			if (node == this.tailNode) {
 				output = this.output;
 			} else {
-				final int numberOfOutputs = wrapper.getOutputEdges().size();
+				final int numberOfOutputs = node.getOutputEdges().size();
 				final Output<StreamRecord<RowData>>[] outputs = new Output[numberOfOutputs];
 				for (int i = 0; i < numberOfOutputs; ++i) {
-					StreamOperatorWrapper.Edge edge = wrapper.getOutputEdges().get(i);
+					StreamOperatorNode.Edge edge = node.getOutputEdges().get(i);
 					int inputId = edge.getInputId();
 					StreamOperator<RowData> outputOperator = edge.getTarget().getStreamOperator();
 					if (isObjectReuseEnabled) {
@@ -253,32 +252,31 @@ public abstract class MultipleInputStreamOperatorBase
 				}
 			}
 			final StreamOperatorParameters<RowData> newParameters =
-					createSubOperatorParameters(parameters, output, wrapper, index++);
-			wrapper.createOperator(newParameters);
+					createSubOperatorParameters(parameters, output, node);
+			node.createOperator(newParameters);
 		}
 	}
 
 	private StreamOperatorParameters<RowData> createSubOperatorParameters(
 			StreamOperatorParameters<RowData> multipleInputOperator,
 			Output<StreamRecord<RowData>> output,
-			StreamOperatorWrapper<?> wrapper,
-			int index) {
+			StreamOperatorNode<?> node) {
 		final ExecutionConfig executionConfig = getExecutionConfig();
 
 		// TODO refactor this
 		final StreamConfig streamConfig = new StreamConfig(
 				multipleInputOperator.getStreamConfig().getConfiguration().clone());
-		streamConfig.setNumberOfInputs(wrapper.getAllInputTypes().size());
+		streamConfig.setNumberOfInputs(node.getAllInputTypes().size());
 		streamConfig.setNumberOfOutputs(1);
 		streamConfig.setTypeSerializersIn(
-				wrapper.getAllInputTypes().stream().map(
+				node.getAllInputTypes().stream().map(
 						t -> t.createSerializer(executionConfig)).toArray(TypeSerializer[]::new));
-		streamConfig.setTypeSerializerOut(wrapper.getOutputType().createSerializer(executionConfig));
-		checkState(wrapper.getManagedMemoryFraction() >= 0);
+		streamConfig.setTypeSerializerOut(node.getOutputType().createSerializer(executionConfig));
+		checkState(node.getManagedMemoryFraction() >= 0);
 		double managedMemoryFraction = multipleInputOperator.getStreamConfig().getManagedMemoryFraction() *
-				wrapper.getManagedMemoryFraction();
+				node.getManagedMemoryFraction();
 		streamConfig.setManagedMemoryFraction(managedMemoryFraction);
-		streamConfig.setOperatorName(wrapper.getOperatorName());
+		streamConfig.setOperatorName(node.getOperatorName());
 
 		return new StreamOperatorParameters<>(
 				multipleInputOperator.getContainingTask(),

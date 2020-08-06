@@ -20,7 +20,7 @@ package org.apache.flink.table.runtime.operators.multipleinput.input;
 
 import org.apache.flink.streaming.api.operators.Input;
 import org.apache.flink.streaming.api.operators.MultipleInputStreamOperator;
-import org.apache.flink.table.runtime.operators.multipleinput.StreamOperatorWrapper;
+import org.apache.flink.table.runtime.operators.multipleinput.StreamOperatorNode;
 
 import java.io.Serializable;
 
@@ -44,7 +44,7 @@ public class InputSpec implements Serializable {
 	/**
 	 * The output operator corresponding to the {@link Input}.
 	 */
-	private final StreamOperatorWrapper<?> output;
+	private final StreamOperatorNode<?> output;
 
 	/**
 	 * The input id (start from 1) used for identifying each input of the output operator.
@@ -54,7 +54,7 @@ public class InputSpec implements Serializable {
 	public InputSpec(
 			int multipleInputId,
 			int readOrder,
-			StreamOperatorWrapper<?> output,
+			StreamOperatorNode<?> output,
 			int outputOpInputId) {
 		this.multipleInputId = multipleInputId;
 		this.readOrder = readOrder;
@@ -70,7 +70,7 @@ public class InputSpec implements Serializable {
 		return readOrder;
 	}
 
-	public StreamOperatorWrapper<?> getOutput() {
+	public StreamOperatorNode<?> getOutput() {
 		return output;
 	}
 

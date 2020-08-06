@@ -28,7 +28,7 @@ import org.apache.flink.table.planner.calcite.FlinkTypeFactory
 import org.apache.flink.table.planner.delegation.BatchPlanner
 import org.apache.flink.table.planner.plan.nodes.exec.{BatchExecNode, ExecNode}
 import org.apache.flink.table.planner.plan.nodes.physical.MultipleInputRel
-import org.apache.flink.table.runtime.operators.multipleinput.{BatchMultipleInputStreamOperatorFactory, StreamOperatorWrapperGenerator}
+import org.apache.flink.table.runtime.operators.multipleinput.{BatchMultipleInputStreamOperatorFactory, StreamOperatorNodeGenerator}
 import org.apache.flink.table.runtime.typeutils.InternalTypeInfo
 
 import org.apache.calcite.plan.{RelOptCluster, RelTraitSet}
@@ -81,15 +81,15 @@ class BatchExecMultipleInputNode(
 
     val outputType = InternalTypeInfo.of(FlinkTypeFactory.toLogicalRowType(getRowType))
 
-    val generator = new StreamOperatorWrapperGenerator(inputTransforms, tailTransform, readOrders)
+    val generator = new StreamOperatorNodeGenerator(inputTransforms, tailTransform, readOrders)
     generator.generate()
 
     val multipleInputTransform = new MultipleInputTransformation[RowData](
       getRelDetailedDescription,
       new BatchMultipleInputStreamOperatorFactory(
         generator.getInputSpecs,
-        generator.getHeadOperatorWrappers,
-        generator.getTailOperatorWrapper),
+        generator.getHeadNodes,
+        generator.getTailNode),
       outputType,
       getParallelism(generator.getParallelism, planner.getTableConfig))
 

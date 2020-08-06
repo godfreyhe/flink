@@ -38,10 +38,10 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
 
 /**
  * This class handles the close, endInput and other related logic of a {@link StreamOperator}.
- * It also automatically propagates the end-input operation to the next wrapper that the {@link #outputs}
- * points to, so we only need to call the head wrapper's {@link #endOperatorInput(int)} method.
+ * It also automatically propagates the end-input operation to the next node that the {@link #outputEdges}
+ * points to, so we only need to call the head node's {@link #endOperatorInput(int)} method.
  */
-public class StreamOperatorWrapper<OP extends StreamOperator<RowData>> implements Serializable {
+public class StreamOperatorNode<OP extends StreamOperator<RowData>> implements Serializable {
 
 	private static final long serialVersionUID = 1L;
 
@@ -88,12 +88,12 @@ public class StreamOperatorWrapper<OP extends StreamOperator<RowData>> implement
 	private double managedMemoryFraction = -1;
 
 	/**
-	 * The input edges of this operator wrapper, the edges' targets is this instance.
+	 * The input edges of this operator node, the edges' targets is this instance.
 	 */
 	private final List<Edge> inputEdges;
 
 	/**
-	 * The output edges of this operator wrapper, the edges' sources is this instance.
+	 * The output edges of this operator node, the edges' sources is this instance.
 	 */
 	private final List<Edge> outputEdges;
 
@@ -105,7 +105,7 @@ public class StreamOperatorWrapper<OP extends StreamOperator<RowData>> implement
 	private boolean closed;
 	private int endedInputCount;
 
-	public StreamOperatorWrapper(
+	public StreamOperatorNode(
 			StreamOperatorFactory<RowData> factory,
 			String name,
 			List<TypeInformation<?>> allInputTypes,
@@ -173,7 +173,7 @@ public class StreamOperatorWrapper<OP extends StreamOperator<RowData>> implement
 	/**
 	 * This method is only used to.
 	 */
-	public void addInput(StreamOperatorWrapper<?> input, int inputId) {
+	public void addInput(StreamOperatorNode<?> input, int inputId) {
 		Edge edge = new Edge(input, this, inputId);
 		this.inputEdges.add(edge);
 		input.outputEdges.add(edge);
@@ -191,7 +191,7 @@ public class StreamOperatorWrapper<OP extends StreamOperator<RowData>> implement
 		return inputEdges;
 	}
 
-	public List<StreamOperatorWrapper<?>> getInputWrappers() {
+	public List<StreamOperatorNode<?>> getInputNodes() {
 		return inputEdges.stream().map(Edge::getSource).collect(Collectors.toList());
 	}
 
@@ -199,7 +199,7 @@ public class StreamOperatorWrapper<OP extends StreamOperator<RowData>> implement
 		return outputEdges;
 	}
 
-	public List<StreamOperatorWrapper<?>> getOutputWrappers() {
+	public List<StreamOperatorNode<?>> getOutputNodes() {
 		return outputEdges.stream().map(Edge::getTarget).collect(Collectors.toList());
 	}
 
@@ -230,13 +230,13 @@ public class StreamOperatorWrapper<OP extends StreamOperator<RowData>> implement
 	}
 
 	/**
-	 * The edge connects two {@link StreamOperatorWrapper}s.
+	 * The edge connects two {@link StreamOperatorNode}s.
 	 */
 	public static class Edge  implements Serializable {
 		private static final long serialVersionUID = 1L;
 
-		private final StreamOperatorWrapper<?> source;
-		private final StreamOperatorWrapper<?> target;
+		private final StreamOperatorNode<?> source;
+		private final StreamOperatorNode<?> target;
 		/**
 		 * The input id (start from 1) corresponding to the target's inputs.
 		 * e.g. the target is a join operator, depending on the side of the source,
@@ -244,17 +244,17 @@ public class StreamOperatorWrapper<OP extends StreamOperator<RowData>> implement
 		 */
 		private final int inputId;
 
-		public Edge(StreamOperatorWrapper<?> source, StreamOperatorWrapper<?> target, int inputId) {
+		public Edge(StreamOperatorNode<?> source, StreamOperatorNode<?> target, int inputId) {
 			this.source = source;
 			this.target = target;
 			this.inputId = inputId;
 		}
 
-		public StreamOperatorWrapper<?> getSource() {
+		public StreamOperatorNode<?> getSource() {
 			return source;
 		}
 
-		public StreamOperatorWrapper<?> getTarget() {
+		public StreamOperatorNode<?> getTarget() {
 			return target;
 		}
 

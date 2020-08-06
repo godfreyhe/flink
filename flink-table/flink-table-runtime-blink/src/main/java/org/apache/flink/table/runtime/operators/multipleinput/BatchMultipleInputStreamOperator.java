@@ -40,9 +40,9 @@ public class BatchMultipleInputStreamOperator
 	public BatchMultipleInputStreamOperator(
 			StreamOperatorParameters<RowData> parameters,
 			List<InputSpec> inputSpecs,
-			List<StreamOperatorWrapper<?>> headOperatorWrappers,
-			StreamOperatorWrapper<?> tailOperatorWrapper) {
-		super(parameters, inputSpecs, headOperatorWrappers, tailOperatorWrapper);
+			List<StreamOperatorNode<?>> headNodes,
+			StreamOperatorNode<?> tailNode) {
+		super(parameters, inputSpecs, headNodes, tailNode);
 		inputSelectionHandler = new InputSelectionHandler(inputSpecs);
 	}
 

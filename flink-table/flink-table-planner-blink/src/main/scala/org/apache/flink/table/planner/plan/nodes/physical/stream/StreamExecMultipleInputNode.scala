@@ -25,7 +25,7 @@ import org.apache.flink.table.planner.calcite.FlinkTypeFactory
 import org.apache.flink.table.planner.delegation.StreamPlanner
 import org.apache.flink.table.planner.plan.nodes.exec.{ExecNode, StreamExecNode}
 import org.apache.flink.table.planner.plan.nodes.physical.MultipleInputRel
-import org.apache.flink.table.runtime.operators.multipleinput.{StreamMultipleInputStreamOperatorFactory, StreamOperatorWrapperGenerator}
+import org.apache.flink.table.runtime.operators.multipleinput.{StreamMultipleInputStreamOperatorFactory, StreamOperatorNodeGenerator}
 import org.apache.flink.table.runtime.typeutils.InternalTypeInfo
 import org.apache.flink.util.Preconditions
 
@@ -66,15 +66,15 @@ class StreamExecMultipleInputNode(
 
     val outputType = InternalTypeInfo.of(FlinkTypeFactory.toLogicalRowType(getRowType))
 
-    val generator = new StreamOperatorWrapperGenerator(inputTransforms, tailTransform)
+    val generator = new StreamOperatorNodeGenerator(inputTransforms, tailTransform)
     generator.generate()
 
     val multipleInputTransform = new KeyedMultipleInputTransformation[RowData](
       getRelDetailedDescription,
       new StreamMultipleInputStreamOperatorFactory(
         generator.getInputSpecs,
-        generator.getHeadOperatorWrappers,
-        generator.getTailOperatorWrapper),
+        generator.getHeadNodes,
+        generator.getTailNode),
       outputType,
       generator.getParallelism,
       Preconditions.checkNotNull(generator.getStateKeyType)
