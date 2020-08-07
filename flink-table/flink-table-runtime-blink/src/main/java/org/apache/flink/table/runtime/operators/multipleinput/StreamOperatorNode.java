@@ -232,7 +232,7 @@ public class StreamOperatorNode<OP extends StreamOperator<RowData>> implements S
 	/**
 	 * The edge connects two {@link StreamOperatorNode}s.
 	 */
-	public static class Edge  implements Serializable {
+	public static class Edge implements Serializable {
 		private static final long serialVersionUID = 1L;
 
 		private final StreamOperatorNode<?> source;

@@ -64,19 +64,19 @@ public abstract class MultipleInputStreamOperatorBase
 		extends AbstractStreamOperatorV2<RowData>
 		implements MultipleInputStreamOperator<RowData> {
 
-	protected final List<InputSpec> inputSpecs;
+	private final List<InputSpec> inputSpecs;
 
 	protected final Map<Integer, InputSpec> inputSpecMap;
 
 	/**
 	 * The head operators of this multiple input operator.
 	 */
-	protected final List<StreamOperatorNode<?>> headNodes;
+	private final List<StreamOperatorNode<?>> headNodes;
 
 	/**
 	 * The tail operator of this multiple input operator.
 	 */
-	protected final StreamOperatorNode<?> tailNode;
+	private final StreamOperatorNode<?> tailNode;
 
 	/**
 	 * all operator as topological ordering in this multiple input operator.
@@ -258,32 +258,30 @@ public abstract class MultipleInputStreamOperatorBase
 	}
 
 	private StreamOperatorParameters<RowData> createSubOperatorParameters(
-			StreamOperatorParameters<RowData> multipleInputOperator,
+			StreamOperatorParameters<RowData> multipleInputOperatorParameters,
 			Output<StreamRecord<RowData>> output,
 			StreamOperatorNode<?> node) {
 		final ExecutionConfig executionConfig = getExecutionConfig();
 
-		// TODO refactor this
 		final StreamConfig streamConfig = new StreamConfig(
-				multipleInputOperator.getStreamConfig().getConfiguration().clone());
+				multipleInputOperatorParameters.getStreamConfig().getConfiguration().clone());
 		streamConfig.setNumberOfInputs(node.getAllInputTypes().size());
-		streamConfig.setNumberOfOutputs(1);
+		streamConfig.setNumberOfOutputs(node.getOutputEdges().size());
 		streamConfig.setTypeSerializersIn(
 				node.getAllInputTypes().stream().map(
 						t -> t.createSerializer(executionConfig)).toArray(TypeSerializer[]::new));
 		streamConfig.setTypeSerializerOut(node.getOutputType().createSerializer(executionConfig));
 		checkState(node.getManagedMemoryFraction() >= 0);
-		double managedMemoryFraction = multipleInputOperator.getStreamConfig().getManagedMemoryFraction() *
+		double managedMemoryFraction = multipleInputOperatorParameters.getStreamConfig().getManagedMemoryFraction() *
 				node.getManagedMemoryFraction();
 		streamConfig.setManagedMemoryFraction(managedMemoryFraction);
-		streamConfig.setOperatorName(node.getOperatorName());
 
 		return new StreamOperatorParameters<>(
-				multipleInputOperator.getContainingTask(),
+				multipleInputOperatorParameters.getContainingTask(),
 				streamConfig,
 				output,
-				multipleInputOperator::getProcessingTimeService,
-				multipleInputOperator.getOperatorEventDispatcher()
+				multipleInputOperatorParameters::getProcessingTimeService,
+				multipleInputOperatorParameters.getOperatorEventDispatcher()
 		);
 	}
 

@@ -23,6 +23,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class StateNameContext implements Serializable {
+	private static final long serialVersionUID = 1L;
 
 	private final Map<String, Integer> nameToCountMap = new HashMap<>();
 
