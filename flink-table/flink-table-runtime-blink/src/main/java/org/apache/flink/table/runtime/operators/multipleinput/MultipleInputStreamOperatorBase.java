@@ -20,6 +20,7 @@ package org.apache.flink.table.runtime.operators.multipleinput;
 
 import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
+import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.streaming.api.graph.StreamConfig;
 import org.apache.flink.streaming.api.operators.AbstractStreamOperatorV2;
 import org.apache.flink.streaming.api.operators.Input;
@@ -43,6 +44,8 @@ import org.apache.flink.table.runtime.operators.multipleinput.output.CopyingSeco
 import org.apache.flink.table.runtime.operators.multipleinput.output.FirstInputOfTwoInputStreamOperatorOutput;
 import org.apache.flink.table.runtime.operators.multipleinput.output.OneInputStreamOperatorOutput;
 import org.apache.flink.table.runtime.operators.multipleinput.output.SecondInputOfTwoInputStreamOperatorOutput;
+
+import javax.annotation.Nullable;
 
 import java.util.ArrayDeque;
 import java.util.Deque;
@@ -233,12 +236,12 @@ public abstract class MultipleInputStreamOperatorBase
 					int inputId = edge.getInputId();
 					StreamOperator<RowData> outputOperator = edge.getTarget().getStreamOperator();
 					if (isObjectReuseEnabled) {
-						outputs[i] = createOutput(outputOperator, inputId);
+						outputs[i] = createOutput(outputOperator, inputId, edge.getKeySelector());
 					} else {
 						// the source's output type info is equal to the target's type info for the corresponding index
 						TypeSerializer<RowData> serializer =
 								(TypeSerializer<RowData>) edge.getSource().getOutputType().createSerializer(executionConfig);
-						outputs[i] = createCopyingOutput(serializer, outputOperator, inputId);
+						outputs[i] = createCopyingOutput(serializer, outputOperator, inputId, edge.getKeySelector());
 					}
 				}
 				if (outputs.length == 1) {
@@ -285,18 +288,21 @@ public abstract class MultipleInputStreamOperatorBase
 		);
 	}
 
-	private Output<StreamRecord<RowData>> createOutput(StreamOperator<RowData> outputOperator, int inputId) {
+	private Output<StreamRecord<RowData>> createOutput(
+			StreamOperator<RowData> outputOperator,
+			int inputId,
+			@Nullable KeySelector<RowData, ?> keySelector) {
 		if (outputOperator instanceof OneInputStreamOperator) {
 			OneInputStreamOperator<RowData, RowData> oneInputOp =
 					(OneInputStreamOperator<RowData, RowData>) outputOperator;
-			return new OneInputStreamOperatorOutput(oneInputOp);
+			return new OneInputStreamOperatorOutput(oneInputOp, keySelector);
 		} else if (outputOperator instanceof TwoInputStreamOperator) {
 			TwoInputStreamOperator<RowData, RowData, RowData> twoInputOp =
 					(TwoInputStreamOperator<RowData, RowData, RowData>) outputOperator;
 			if (inputId == 1) {
-				return new FirstInputOfTwoInputStreamOperatorOutput(twoInputOp);
+				return new FirstInputOfTwoInputStreamOperatorOutput(twoInputOp, keySelector);
 			} else {
-				return new SecondInputOfTwoInputStreamOperatorOutput(twoInputOp);
+				return new SecondInputOfTwoInputStreamOperatorOutput(twoInputOp, keySelector);
 			}
 		} else {
 			throw new RuntimeException("Unsupported StreamOperator: " + outputOperator);
@@ -306,18 +312,19 @@ public abstract class MultipleInputStreamOperatorBase
 	private Output<StreamRecord<RowData>> createCopyingOutput(
 			TypeSerializer<RowData> serializer,
 			StreamOperator<RowData> outputOperator,
-			int inputId) {
+			int inputId,
+			@Nullable KeySelector<RowData, ?> keySelector) {
 		if (outputOperator instanceof OneInputStreamOperator) {
 			final OneInputStreamOperator<RowData, RowData> oneInputOp =
 					(OneInputStreamOperator<RowData, RowData>) outputOperator;
-			return new CopyingOneInputStreamOperatorOutput(oneInputOp, serializer);
+			return new CopyingOneInputStreamOperatorOutput(oneInputOp, serializer, keySelector);
 		} else if (outputOperator instanceof TwoInputStreamOperator) {
 			final TwoInputStreamOperator<RowData, RowData, RowData> twoInputOp =
 					(TwoInputStreamOperator<RowData, RowData, RowData>) outputOperator;
 			if (inputId == 1) {
-				return new CopyingFirstInputOfTwoInputStreamOperatorOutput(twoInputOp, serializer);
+				return new CopyingFirstInputOfTwoInputStreamOperatorOutput(twoInputOp, serializer, keySelector);
 			} else {
-				return new CopyingSecondInputOfTwoInputStreamOperatorOutput(twoInputOp, serializer);
+				return new CopyingSecondInputOfTwoInputStreamOperatorOutput(twoInputOp, serializer, keySelector);
 			}
 		} else {
 			throw new RuntimeException("Unsupported StreamOperator: " + outputOperator);

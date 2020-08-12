@@ -233,7 +233,7 @@ public class StreamOperatorNodeGenerator {
 			headNodes.add(node);
 		} else {
 			StreamOperatorNode<?> inputNode = visit(input);
-			node.addInput(inputNode, 1);
+			node.addInput(inputNode, 1, transform.getStateKeySelector());
 		}
 		return node;
 	}
@@ -275,9 +275,9 @@ public class StreamOperatorNodeGenerator {
 			headNodes.add(node);
 		} else {
 			StreamOperatorNode<?> inputNode1 = visit(input1);
-			node.addInput(inputNode1, 1);
+			node.addInput(inputNode1, 1, transform.getStateKeySelector1());
 			StreamOperatorNode<?> inputNode2 = visit(input2);
-			node.addInput(inputNode2, 2);
+			node.addInput(inputNode2, 2, transform.getStateKeySelector2());
 		}
 		if (inputIdx1 >= 0 || inputIdx2 >= 0) {
 			checkAndSetStateKeyType(transform.getStateKeyType());

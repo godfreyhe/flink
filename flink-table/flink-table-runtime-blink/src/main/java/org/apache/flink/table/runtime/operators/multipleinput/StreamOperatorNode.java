@@ -19,6 +19,7 @@
 package org.apache.flink.table.runtime.operators.multipleinput;
 
 import org.apache.flink.api.common.typeinfo.TypeInformation;
+import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.streaming.api.operators.BoundedMultiInput;
 import org.apache.flink.streaming.api.operators.BoundedOneInput;
 import org.apache.flink.streaming.api.operators.SetupableStreamOperator;
@@ -27,6 +28,8 @@ import org.apache.flink.streaming.api.operators.StreamOperatorFactory;
 import org.apache.flink.streaming.api.operators.StreamOperatorParameters;
 import org.apache.flink.streaming.runtime.tasks.ProcessingTimeServiceAware;
 import org.apache.flink.table.data.RowData;
+
+import javax.annotation.Nullable;
 
 import java.io.Serializable;
 import java.util.ArrayList;
@@ -170,11 +173,12 @@ public class StreamOperatorNode<OP extends StreamOperator<RowData>> implements S
 		return outputType;
 	}
 
-	/**
-	 * This method is only used to.
-	 */
 	public void addInput(StreamOperatorNode<?> input, int inputId) {
-		Edge edge = new Edge(input, this, inputId);
+		addInput(input, inputId, null);
+	}
+
+	public void addInput(StreamOperatorNode<?> input, int inputId, @Nullable KeySelector<RowData, ?> keySelector) {
+		Edge edge = new Edge(input, this, inputId, keySelector);
 		this.inputEdges.add(edge);
 		input.outputEdges.add(edge);
 	}
@@ -238,16 +242,26 @@ public class StreamOperatorNode<OP extends StreamOperator<RowData>> implements S
 		private final StreamOperatorNode<?> source;
 		private final StreamOperatorNode<?> target;
 		/**
+		 * The key selector the the target's input.
+		 */
+		@Nullable
+		private final KeySelector<RowData, ?> keySelector;
+		/**
 		 * The input id (start from 1) corresponding to the target's inputs.
 		 * e.g. the target is a join operator, depending on the side of the source,
 		 * input id may be 1 (left side) or 2 (right side).
 		 */
 		private final int inputId;
 
-		public Edge(StreamOperatorNode<?> source, StreamOperatorNode<?> target, int inputId) {
+		public Edge(
+				StreamOperatorNode<?> source,
+				StreamOperatorNode<?> target,
+				int inputId,
+				@Nullable KeySelector<RowData, ?> keySelector) {
 			this.source = source;
 			this.target = target;
 			this.inputId = inputId;
+			this.keySelector = keySelector;
 		}
 
 		public StreamOperatorNode<?> getSource() {
@@ -260,6 +274,11 @@ public class StreamOperatorNode<OP extends StreamOperator<RowData>> implements S
 
 		public int getInputId() {
 			return inputId;
+		}
+
+		@Nullable
+		public KeySelector<RowData, ?> getKeySelector() {
+			return keySelector;
 		}
 
 		@Override
