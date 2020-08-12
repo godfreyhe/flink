@@ -653,8 +653,8 @@ public class BinaryHashTable extends BaseHybridHashTable {
 		this.buildSpillRetBufferNumbers += numBuffersFreed;
 
 		LOG.info(String.format("[%s] Grace hash join: Ran out memory, choosing partition " +
-						"[%d] to spill, %d memory segments being freed",
-				jobName, largestPartNum, numBuffersFreed));
+						"[%d] to spill, %d memory segments being freed, usedMemory %d, spilledBytes %d, spilledFiles %d",
+				jobName, largestPartNum, numBuffersFreed, getUsedMemoryInBytes(), getSpillInBytes(), getNumSpillFiles()));
 
 		// grab as many buffers as are available directly
 		MemorySegment currBuff;

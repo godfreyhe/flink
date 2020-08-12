@@ -590,8 +590,8 @@ object HashAggCodeGenHelper {
     if (isFinal) {
       val logMapSpilling =
         CodeGenUtils.genLogInfo(
-          logTerm, s"[$jobName] BytesHashMap out of memory with {} entries, start spilling.",
-          s"$aggregateMapTerm.getNumElements()")
+          logTerm, s"[$jobName] BytesHashMap out of memory with {} entries, start spilling. usedMemory {}, spilledBytes {}, spilledFiles {}",
+          s"$aggregateMapTerm.getNumElements(), $aggregateMapTerm.getUsedMemoryInBytes(), $aggregateMapTerm.getSpillInBytes(), $aggregateMapTerm.getNumSpillFiles()")
 
       // gen fallback to sort agg
       val (groupKeyTypesTerm, aggBufferTypesTerm) = aggMapKVTypesTerm

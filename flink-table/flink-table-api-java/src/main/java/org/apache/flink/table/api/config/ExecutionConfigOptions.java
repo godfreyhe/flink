@@ -149,6 +149,12 @@ public class ExecutionConfigOptions {
 			.withDescription("");
 
 	@Documentation.TableOption(execMode = Documentation.ExecMode.BATCH_STREAMING)
+	public static final ConfigOption<Integer> TABLE_EXEC_RESOURCE_MULTIPLE_INPUT_PARALLELISM_MAX =
+		key("table.exec.resource.multiple-input-parallelism-max")
+			.defaultValue(-1)
+			.withDescription("");
+
+	@Documentation.TableOption(execMode = Documentation.ExecMode.BATCH_STREAMING)
 	public static final ConfigOption<Double> TABLE_EXEC_RESOURCE_MULTIPLE_INPUT_MEMORY_FACTOR =
 		key("table.exec.resource.multiple-input-memory-factor")
 			.defaultValue(1.0)

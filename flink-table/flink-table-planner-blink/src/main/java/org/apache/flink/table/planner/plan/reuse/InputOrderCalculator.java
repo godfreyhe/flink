@@ -191,8 +191,6 @@ public class InputOrderCalculator {
 				return;
 			}
 			visited.add(node);
-
-			processor.accept(node);
 			results.add(node);
 
 			for (ExecNode<?, ?> input : node.getInputNodes()) {
@@ -200,6 +198,8 @@ public class InputOrderCalculator {
 					dfs(input);
 				}
 			}
+
+			processor.accept(node);
 		}
 	}
 

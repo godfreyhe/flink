@@ -140,6 +140,12 @@ public abstract class RetryingRegistration<F extends Serializable, G extends Rpc
 			// trigger resolution of the target address to a callable gateway
 			final CompletableFuture<G> rpcGatewayFuture;
 
+			StackTraceElement[] stacks = Thread.currentThread().getStackTrace();
+			StringBuilder sb = new StringBuilder();
+			for (StackTraceElement stack : stacks) {
+				sb.append(stack.toString()).append("\n");
+			}
+
 			if (FencedRpcGateway.class.isAssignableFrom(targetType)) {
 				rpcGatewayFuture = (CompletableFuture<G>) rpcService.connect(
 					targetAddress,
@@ -171,11 +177,12 @@ public abstract class RetryingRegistration<F extends Serializable, G extends Rpc
 								strippedFailure);
 						} else {
 							log.info(
-								"Could not resolve {} address {}, retrying in {} ms: {}",
+								"Could not resolve {} address {}, retrying in {} ms: {}, {}",
 								targetName,
 								targetAddress,
 								retryingRegistrationConfiguration.getErrorDelayMillis(),
-								strippedFailure.getMessage());
+								strippedFailure.getMessage(),
+								sb.toString());
 						}
 
 						startRegistrationLater(retryingRegistrationConfiguration.getErrorDelayMillis());

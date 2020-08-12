@@ -118,7 +118,8 @@ public abstract class HashJoinOperator extends TableStreamOperator<RowData>
 				condition,
 				reverseJoinFunction,
 				parameter.filterNullKeys,
-				parameter.tryDistinctBuildRow);
+				parameter.tryDistinctBuildRow,
+				jobName);
 
 		this.collector = new StreamRecordCollector<>(output);
 

@@ -138,6 +138,7 @@ abstract class BatchExecHashAggregateBase(
       new HashAggCodeGenerator(
         ctx, relBuilder, aggInfos, inputType, outputType, grouping, auxGrouping, isMerge, isFinal,
         jobName = config.getConfiguration.getString("__job_name__", "")
+          + "__" + getRelDetailedDescription
       ).genWithKeys()
     }
     val operator = new CodeGenOperatorFactory[RowData](generatedOperator)

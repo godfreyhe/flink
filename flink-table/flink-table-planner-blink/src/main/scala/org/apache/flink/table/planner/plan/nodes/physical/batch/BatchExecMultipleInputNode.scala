@@ -123,7 +123,12 @@ class BatchExecMultipleInputNode(
     val numOfOperators = getNumberOfOperators(outputRel)
     val factor = tableConfig.getConfiguration.getDouble(
       ExecutionConfigOptions.TABLE_EXEC_RESOURCE_MULTIPLE_INPUT_PARALLELISM_FACTOR)
-    val r = p * numOfOperators * factor
+    var r = p * numOfOperators * factor
+    val rLim = tableConfig.getConfiguration.getInteger(
+      ExecutionConfigOptions.TABLE_EXEC_RESOURCE_MULTIPLE_INPUT_PARALLELISM_MAX)
+    if (rLim > 0) {
+      r = scala.math.min(r.toInt, rLim)
+    }
     if (r > 0) r.toInt else -1
   }
 

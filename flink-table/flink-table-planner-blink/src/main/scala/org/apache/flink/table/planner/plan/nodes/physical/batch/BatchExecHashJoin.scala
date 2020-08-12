@@ -237,7 +237,7 @@ class BatchExecHashJoin(
         buildRowCount,
         reverseJoin,
         condFunc,
-        jobName)
+        jobName + "__" + getRelDetailedDescription)
     } else {
       SimpleOperatorFactory.of(HashJoinOperator.newHashJoinOperator(
         hashJoinType,
@@ -251,7 +251,7 @@ class BatchExecHashJoin(
         buildRowCount,
         probeRowCount,
         keyType,
-        jobName
+        jobName + "__" + getRelDetailedDescription
       ))
     }
 
