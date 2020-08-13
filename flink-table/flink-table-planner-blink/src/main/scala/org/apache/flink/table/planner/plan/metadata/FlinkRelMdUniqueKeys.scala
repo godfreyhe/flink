@@ -553,6 +553,18 @@ class FlinkRelMdUniqueKeys private extends MetadataHandler[BuiltInMetadata.Uniqu
     }
   }
 
+  def getUniqueKeys(
+     multipleInput: BatchExecMultipleInputNode,
+     mq: RelMetadataQuery,
+     ignoreNulls: Boolean): JSet[ImmutableBitSet] =
+    mq.getUniqueKeys(multipleInput.getOutputRel, ignoreNulls)
+
+  def getUniqueKeys(
+      multipleInput: StreamExecMultipleInputNode,
+      mq: RelMetadataQuery,
+      ignoreNulls: Boolean): JSet[ImmutableBitSet] =
+    mq.getUniqueKeys(multipleInput.getOutputRel, ignoreNulls)
+
   // Catch-all rule when none of the others apply.
   def getUniqueKeys(
       rel: RelNode,

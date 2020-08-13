@@ -268,6 +268,7 @@ public abstract class MultipleInputStreamOperatorBase
 
 		final StreamConfig streamConfig = new StreamConfig(
 				multipleInputOperatorParameters.getStreamConfig().getConfiguration().clone());
+		streamConfig.setOperatorName(node.getOperatorName());
 		streamConfig.setNumberOfInputs(node.getAllInputTypes().size());
 		streamConfig.setNumberOfOutputs(node.getOutputEdges().size());
 		streamConfig.setTypeSerializersIn(

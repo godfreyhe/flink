@@ -45,7 +45,10 @@ class StreamExecMultipleInputNode(
     inputRels: Array[RelNode],
     outputRel: RelNode) // the root node of the sub-tree (from output node to input nodes)
   extends MultipleInputRel(cluster, traitSet, inputRels, outputRel)
-  with StreamExecNode[RowData] {
+  with StreamExecNode[RowData]
+  with StreamPhysicalRel {
+
+  def getOutputRel: RelNode = outputRel
 
   //~ ExecNode methods -----------------------------------------------------------
 
@@ -97,4 +100,32 @@ class StreamExecMultipleInputNode(
     multipleInputTransform
   }
 
+  /**
+   * Whether the [[StreamPhysicalRel]] requires rowtime watermark in processing logic.
+   */
+  override def requireWatermark: Boolean = {
+    val visited = new java.util.HashSet[RelNode]()
+    var ret = false
+
+    def dfs(node: RelNode): Unit = {
+      if (visited.contains(node)) {
+        return
+      }
+
+      visited.add(node)
+      node match {
+        case rel: StreamPhysicalRel =>
+          ret = ret || rel.requireWatermark
+        case _ =>
+      }
+
+      val it = visited.iterator()
+      while (it.hasNext) {
+        dfs(it.next())
+      }
+    }
+
+    dfs(outputRel)
+    ret
+  }
 }

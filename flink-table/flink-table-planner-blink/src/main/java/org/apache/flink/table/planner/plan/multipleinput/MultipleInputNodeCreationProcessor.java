@@ -336,7 +336,7 @@ public class MultipleInputNodeCreationProcessor implements DAGProcessor {
 			} else {
 				multipleInputNode = createBatchMultipleInputNode();
 			}
-			System.out.println(((FlinkRelNode) multipleInputNode).getRelDetailedDescription());
+			// System.out.println(((FlinkRelNode) multipleInputNode).getRelDetailedDescription());
 			return multipleInputNode;
 		}
 

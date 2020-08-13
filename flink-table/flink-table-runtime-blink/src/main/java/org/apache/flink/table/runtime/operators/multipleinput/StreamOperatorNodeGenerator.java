@@ -219,7 +219,7 @@ public class StreamOperatorNodeGenerator {
 
 		StreamOperatorNode<?> node = new StreamOperatorNode<>(
 				transform.getOperatorFactory(),
-				transform.getName(),
+				"SubOp" + visitedTransforms.size() + "_" + transform.getName(),
 				Collections.singletonList(transform.getInputType()),
 				transform.getOutputType()
 		);
@@ -247,7 +247,7 @@ public class StreamOperatorNodeGenerator {
 
 		StreamOperatorNode<?> node = new StreamOperatorNode<>(
 				transform.getOperatorFactory(),
-				transform.getName(),
+				"SubOp" + visitedTransforms.size() + "_" + transform.getName(),
 				Arrays.asList(transform.getInputType1(), transform.getInputType2()),
 				transform.getOutputType());
 
@@ -291,7 +291,7 @@ public class StreamOperatorNodeGenerator {
 		// use MapFunction to combine the input data
 		StreamOperatorNode<?> node = new StreamOperatorNode<>(
 				SimpleOperatorFactory.of(new UnionStreamOperator<>((MapFunction<RowData, RowData>) value -> value)),
-				transform.getName(),
+				"SubOp" + visitedTransforms.size() + "_" + transform.getName(),
 				transform.getInputs().stream().map(Transformation::getOutputType).collect(Collectors.toList()),
 				transform.getOutputType());
 

@@ -59,6 +59,8 @@ class BatchExecMultipleInputNode(
   extends MultipleInputRel(cluster, traitSet, inputRels, outputRel)
   with BatchExecNode[RowData] {
 
+  def getOutputRel: RelNode = outputRel
+
   override def getDamBehavior: DamBehavior = {
     throw new UnsupportedOperationException()
   }

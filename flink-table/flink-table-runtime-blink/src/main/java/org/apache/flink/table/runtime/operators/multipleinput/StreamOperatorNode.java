@@ -133,10 +133,10 @@ public class StreamOperatorNode<OP extends StreamOperator<RowData>> implements S
 			((ProcessingTimeServiceAware) factory).setProcessingTimeService(parameters.getProcessingTimeService());
 		}
 		wrapped = factory.createStreamOperator(parameters);
-		if (wrapped instanceof SetupableStreamOperator) {
+		/*if (wrapped instanceof SetupableStreamOperator) {
 			((SetupableStreamOperator) wrapped).setup(
 					parameters.getContainingTask(), parameters.getStreamConfig(), parameters.getOutput());
-		}
+		}*/
 	}
 
 	public void endOperatorInput(int inputId) throws Exception {
