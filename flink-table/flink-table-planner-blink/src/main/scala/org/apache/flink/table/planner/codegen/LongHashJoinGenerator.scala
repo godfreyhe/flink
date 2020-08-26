@@ -181,7 +181,7 @@ object LongHashJoinGenerator {
          |      computeMemorySize(),
          |      getContainingTask().getEnvironment().getIOManager(),
          |      $buildRowSize,
-         |      ${buildRowCount}L / getRuntimeContext().getNumberOfParallelSubtasks(), "$jobName");
+         |      ${buildRowCount}L / getRuntimeContext().getNumberOfParallelSubtasks(), "${jobName.replace("\"", "\\\"")}");
          |  }
          |
          |  @Override

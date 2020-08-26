@@ -22,9 +22,16 @@ import org.apache.flink.table.api.TableConfig;
 import org.apache.flink.table.api.TableEnvironment;
 import org.apache.flink.table.api.config.ExecutionConfigOptions;
 import org.apache.flink.table.api.config.OptimizerConfigOptions;
+import org.apache.flink.table.catalog.ConnectorCatalogTable;
+import org.apache.flink.table.catalog.ObjectPath;
 import org.apache.flink.table.catalog.hive.HiveCatalog;
+import org.apache.flink.table.planner.plan.multipleinput.schema.TpcdsSchema;
+import org.apache.flink.table.planner.plan.multipleinput.schema.TpcdsSchemaProvider;
+import org.apache.flink.table.planner.plan.multipleinput.stats.TpcdsStatsProvider;
 import org.apache.flink.table.planner.utils.BatchTableTestUtil;
 import org.apache.flink.table.planner.utils.TableTestBase;
+import org.apache.flink.table.sources.CsvTableSource;
+import org.apache.flink.table.types.utils.TypeConversions;
 import org.apache.flink.util.FileUtils;
 
 import org.junit.Before;
@@ -99,7 +106,7 @@ public class TpcdsPlanTest extends TableTestBase {
 
 		TpcdsStatsProvider.registerTpcdsStats(tEnv);*/
 
-		HiveCatalog hive = new HiveCatalog("myhive", "tpcds_bin_parquet_10000", "/Users/tsreaper/opt/test-data/tpcds-hive-conf", "2.3.4");
+		HiveCatalog hive = new HiveCatalog("myhive", "tpcds_bin_orc_10000", "/Users/tsreaper/opt/test-data/tpcds-hive-conf", "2.3.4");
 		tEnv.registerCatalog("myhive", hive);
 		tEnv.useCatalog("myhive");
 	}
@@ -109,12 +116,15 @@ public class TpcdsPlanTest extends TableTestBase {
 		File sqlFile = new File(TpcdsPlanTest.class.getClassLoader().getResource("org/apache/flink/table/planner/plan/multipleinput/query/query" + caseName + ".sql").getFile());
 		String sql = FileUtils.readFileUtf8(sqlFile);
 		util.verifyPlan(sql);
+
+		/*TableEnvironment tEnv = util.getTableEnv();
+		tEnv.executeSql(sql);*/
 	}
 
 	@Parameterized.Parameters(name = "q{0}")
 	public static Collection<String> parameters() {
 		return Arrays.asList(
-			"1", "2", "3", "4", "5", "6", "7", "8", "9", "10",
+			/*"1", "2", "3", "4", "5", "6", "7", "8", "9", "10",
 			"11", "12", "13", "14a", "14b", "15", "16", "17", "18", "19", "20",
 			"21", "22", "23a", "23b", "24a", "24b", "25", "26", "27", "28", "29", "30",
 			"31", "32", "33", "34", "35", "36", "37", "38", "39a", "39b", "40",
@@ -123,6 +133,6 @@ public class TpcdsPlanTest extends TableTestBase {
 			"61", "62", "63", "64", "65", "66", "67", "68", "69", "70",
 			"71", "72", "73", "74", "75", "76", "77", "78", "79", "80",
 			"81", "82", "83", "84", "85", "86", "87", "88", "89", "90",
-			"91", "92", "93", "94", "95", "96", "97", "98", "99");
+			"91", "92", "93", "94", "95", "96", "97", "98", "99"*/"5");
 	}
 }

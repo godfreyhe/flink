@@ -119,13 +119,16 @@ public class StreamOperatorNodeGenerator {
 		this.orderedInputTransforms = new ArrayList<>();
 		this.orderedKeySelectors = new ArrayList<>();
 		this.visitedTransforms = new IdentityHashMap<>();
+
+		this.parallelism = -1;
+		this.maxParallelism = -1;
 	}
 
 	public void generate() {
 		tailNode = visit(tailTransform);
 		checkState(orderedInputTransforms.size() == inputTransforms.size());
 		checkState(orderedInputTransforms.size() == inputSpecs.size());
-		checkState(orderedInputTransforms.size() == orderedKeySelectors.size());
+		// checkState(orderedInputTransforms.size() == orderedKeySelectors.size());
 		calculateManagedMemoryFraction();
 	}
 
@@ -175,16 +178,29 @@ public class StreamOperatorNodeGenerator {
 	}
 
 	private StreamOperatorNode<?> visit(Transformation<?> transform) {
+		int currentParallelism = transform.getParallelism();
+		if (parallelism < 0) {
+			parallelism = currentParallelism;
+		} else {
+			checkState(
+				currentParallelism < 0 || parallelism == currentParallelism,
+				"Parallelism of a transformation in MultipleInputNode is different from others. This is a bug.");
+		}
+
+		int currentMaxParallelism = transform.getMaxParallelism();
+		if (maxParallelism < 0) {
+			maxParallelism = currentMaxParallelism;
+		} else {
+			checkState(
+				currentMaxParallelism < 0 || maxParallelism == currentMaxParallelism,
+				"Max parallelism of a transformation in MultipleInputNode is different from others. This is a bug.");
+		}
+
 		if (minResources == null) {
-			parallelism = transform.getParallelism();
-			maxParallelism = transform.getMaxParallelism();
 			minResources = transform.getMinResources();
 			preferredResources = transform.getPreferredResources();
 			managedMemoryWeight = transform.getManagedMemoryWeight();
 		} else {
-			// TODO
-//			checkState(transform.getParallelism() == parallelism, "This should not happen.");
-//			checkState(transform.getMaxParallelism() == maxParallelism, "This should not happen.");
 			minResources = minResources.merge(transform.getMinResources());
 			preferredResources = preferredResources.merge(transform.getPreferredResources());
 			managedMemoryWeight += transform.getManagedMemoryWeight();

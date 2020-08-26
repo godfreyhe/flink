@@ -143,6 +143,12 @@ public class ExecutionConfigOptions {
 					"of StreamExecutionEnvironment.");
 
 	@Documentation.TableOption(execMode = Documentation.ExecMode.BATCH_STREAMING)
+	public static final ConfigOption<Boolean> TABLE_EXEC_RESOURCE_MULTIPLE_INPUT_PARALLELISM_FACTOR_ENABLED =
+		key("table.exec.resource.multiple-input-parallelism-factor.enabled")
+			.defaultValue(false)
+			.withDescription("");
+
+	@Documentation.TableOption(execMode = Documentation.ExecMode.BATCH_STREAMING)
 	public static final ConfigOption<Double> TABLE_EXEC_RESOURCE_MULTIPLE_INPUT_PARALLELISM_FACTOR =
 		key("table.exec.resource.multiple-input-parallelism-factor")
 			.defaultValue(1.0)

@@ -116,22 +116,30 @@ class BatchExecMultipleInputNode(
     if (parallelism == 1) {
       return parallelism
     }
+
     val p = if (parallelism > 0) {
       parallelism
     } else {
       tableConfig.getConfiguration.getInteger(
         ExecutionConfigOptions.TABLE_EXEC_RESOURCE_DEFAULT_PARALLELISM)
     }
-    val numOfOperators = getNumberOfOperators(outputRel)
-    val factor = tableConfig.getConfiguration.getDouble(
-      ExecutionConfigOptions.TABLE_EXEC_RESOURCE_MULTIPLE_INPUT_PARALLELISM_FACTOR)
-    var r = p * numOfOperators * factor
-    val rLim = tableConfig.getConfiguration.getInteger(
-      ExecutionConfigOptions.TABLE_EXEC_RESOURCE_MULTIPLE_INPUT_PARALLELISM_MAX)
-    if (rLim > 0) {
-      r = scala.math.min(r.toInt, rLim)
+
+    val hasForward = inputRels.exists(input => !input.isInstanceOf[BatchExecExchange])
+    if (tableConfig.getConfiguration.getBoolean(
+        ExecutionConfigOptions.TABLE_EXEC_RESOURCE_MULTIPLE_INPUT_PARALLELISM_FACTOR_ENABLED) && !hasForward) {
+      val numOfOperators = getNumberOfOperators(outputRel)
+      val factor = tableConfig.getConfiguration.getDouble(
+        ExecutionConfigOptions.TABLE_EXEC_RESOURCE_MULTIPLE_INPUT_PARALLELISM_FACTOR)
+      var r = p * numOfOperators * factor
+      val rLim = tableConfig.getConfiguration.getInteger(
+        ExecutionConfigOptions.TABLE_EXEC_RESOURCE_MULTIPLE_INPUT_PARALLELISM_MAX)
+      if (rLim > 0) {
+        r = scala.math.min(r.toInt, rLim)
+      }
+      if (r > 0) r.toInt else -1
+    } else {
+      p
     }
-    if (r > 0) r.toInt else -1
   }
 
   private def getNumberOfOperators(rel: RelNode): Int = {
