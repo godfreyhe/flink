@@ -267,8 +267,8 @@ public class StreamOperatorNodeGenerator {
 			inputSpecs.add(createInputSpec(readOrders[inputIdx1], node, 1));
 			headNodes.add(node);
 		} else if (inputIdx2 >= 0) {
-			StreamOperatorNode<?> inputnode = visit(input1);
-			node.addInput(inputnode, 1);
+			StreamOperatorNode<?> inputNode = visit(input1);
+			node.addInput(inputNode, 1);
 			orderedInputTransforms.add(input2);
 			orderedKeySelectors.add(transform.getStateKeySelector2());
 			inputSpecs.add(createInputSpec(readOrders[inputIdx2], node, 2));
@@ -295,20 +295,25 @@ public class StreamOperatorNodeGenerator {
 				transform.getInputs().stream().map(Transformation::getOutputType).collect(Collectors.toList()),
 				transform.getOutputType());
 
-		boolean isHeadOperator = false;
+		int numberOfHeadInput = 0;
 		for (Transformation<RowData> input : transform.getInputs()) {
 			int inputIdx = inputTransforms.indexOf(input);
 			if (inputIdx >= 0) {
-				// TODO union should not be input ?
-				isHeadOperator = true;
+				numberOfHeadInput ++;
 				orderedInputTransforms.add(input);
+				orderedKeySelectors.add(null);
 				inputSpecs.add(createInputSpec(readOrders[inputIdx], node, 1)); // always 1 here
 			} else {
 				StreamOperatorNode<?> inputNode = visit(input);
 				node.addInput(inputNode, 1); // always 1 here
 			}
 		}
-		if (isHeadOperator) {
+		// TODO remove this validation ?
+		if (numberOfHeadInput == transform.getInputs().size()) {
+			throw new TableException("This should not happen.");
+		}
+
+		if (numberOfHeadInput > 0) {
 			headNodes.add(node);
 		}
 		return node;
