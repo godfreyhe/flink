@@ -79,6 +79,8 @@ public class TpcdsPlanTest extends TableTestBase {
 			.set(ExecutionConfigOptions.TABLE_EXEC_SHUFFLE_MODE, "ALL_EDGES_BLOCKING");
 		tEnv.getConfig().getConfiguration()
 			.setBoolean(OptimizerConfigOptions.TABLE_OPTIMIZER_MULTIPLE_INPUT_ENABLED, true);
+		tEnv.getConfig().getConfiguration()
+			.setBoolean(OptimizerConfigOptions.TABLE_OPTIMIZER_REUSE_SOURCE_ENABLED, false);
 
 		//register TPC-DS tables
 		/*TPCDS_TABLES.forEach(table -> {
@@ -113,7 +115,8 @@ public class TpcdsPlanTest extends TableTestBase {
 
 	@Test
 	public void testPlan() throws Exception {
-		File sqlFile = new File(TpcdsPlanTest.class.getClassLoader().getResource("org/apache/flink/table/planner/plan/multipleinput/query/query" + caseName + ".sql").getFile());
+		String filename = "org/apache/flink/table/planner/plan/multipleinput/query/q" + caseName + ".sql";
+		File sqlFile = new File(TpcdsPlanTest.class.getClassLoader().getResource(filename).getFile());
 		String sql = FileUtils.readFileUtf8(sqlFile);
 		util.verifyPlan(sql);
 
@@ -124,15 +127,15 @@ public class TpcdsPlanTest extends TableTestBase {
 	@Parameterized.Parameters(name = "q{0}")
 	public static Collection<String> parameters() {
 		return Arrays.asList(
-			/*"1", "2", "3", "4", "5", "6", "7", "8", "9", "10",
+			"1", "2", "3", "4", "5", "6", "7", "8", "9", "10",
 			"11", "12", "13", "14a", "14b", "15", "16", "17", "18", "19", "20",
-			"21", "22", "23a", "23b", "24a", "24b", "25", "26", "27", "28", "29", "30",
+			"21", "22", "23a", "23b", "24", "25", "26", "27", "28", "29", "30",
 			"31", "32", "33", "34", "35", "36", "37", "38", "39a", "39b", "40",
 			"41", "42", "43", "44", "45", "46", "47", "48", "49", "50",
 			"51", "52", "53", "54", "55", "56", "57", "58", "59", "60",
 			"61", "62", "63", "64", "65", "66", "67", "68", "69", "70",
 			"71", "72", "73", "74", "75", "76", "77", "78", "79", "80",
 			"81", "82", "83", "84", "85", "86", "87", "88", "89", "90",
-			"91", "92", "93", "94", "95", "96", "97", "98", "99"*/"5");
+			"91", "92", "93", "94", "95", "96", "97", "98", "99");
 	}
 }
