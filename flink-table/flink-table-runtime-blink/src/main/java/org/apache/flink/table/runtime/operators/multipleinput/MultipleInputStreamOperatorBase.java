@@ -58,7 +58,6 @@ import java.util.Queue;
 import java.util.stream.Collectors;
 
 import static org.apache.flink.util.Preconditions.checkArgument;
-import static org.apache.flink.util.Preconditions.checkState;
 
 /**
  * Base {@link MultipleInputStreamOperator} to handle multiple inputs in table module.
@@ -264,22 +263,7 @@ public abstract class MultipleInputStreamOperatorBase
 			StreamOperatorParameters<RowData> multipleInputOperatorParameters,
 			Output<StreamRecord<RowData>> output,
 			TableOperatorWrapper<?> wrapper) {
-		final ExecutionConfig executionConfig = getExecutionConfig();
-
-		final StreamConfig streamConfig = new StreamConfig(
-				multipleInputOperatorParameters.getStreamConfig().getConfiguration().clone());
-		streamConfig.setOperatorName(wrapper.getOperatorName());
-		streamConfig.setNumberOfInputs(wrapper.getAllInputTypes().size());
-		streamConfig.setNumberOfOutputs(wrapper.getOutputEdges().size());
-		streamConfig.setTypeSerializersIn(
-				wrapper.getAllInputTypes().stream().map(
-						t -> t.createSerializer(executionConfig)).toArray(TypeSerializer[]::new));
-		streamConfig.setTypeSerializerOut(wrapper.getOutputType().createSerializer(executionConfig));
-		checkState(wrapper.getManagedMemoryFraction() >= 0);
-		double managedMemoryFraction = multipleInputOperatorParameters.getStreamConfig().getManagedMemoryFraction() *
-				wrapper.getManagedMemoryFraction();
-		streamConfig.setManagedMemoryFraction(managedMemoryFraction);
-
+		final StreamConfig streamConfig = createStreamConfig(multipleInputOperatorParameters, wrapper);
 		return new StreamOperatorParameters<>(
 				multipleInputOperatorParameters.getContainingTask(),
 				streamConfig,
@@ -287,6 +271,23 @@ public abstract class MultipleInputStreamOperatorBase
 				multipleInputOperatorParameters::getProcessingTimeService,
 				multipleInputOperatorParameters.getOperatorEventDispatcher()
 		);
+	}
+
+	protected StreamConfig createStreamConfig(
+			StreamOperatorParameters<RowData> multipleInputOperatorParameters,
+			TableOperatorWrapper<?> wrapper) {
+		final ExecutionConfig executionConfig = getExecutionConfig();
+
+		final StreamConfig streamConfig = new StreamConfig(
+				multipleInputOperatorParameters.getStreamConfig().getConfiguration().clone());
+		streamConfig.setOperatorName(wrapper.getOperatorName());
+		streamConfig.setNumberOfNetworkInputs(wrapper.getAllInputTypes().size());
+		streamConfig.setNumberOfOutputs(wrapper.getOutputEdges().size());
+		streamConfig.setTypeSerializersIn(
+				wrapper.getAllInputTypes().stream().map(
+						t -> t.createSerializer(executionConfig)).toArray(TypeSerializer[]::new));
+		streamConfig.setTypeSerializerOut(wrapper.getOutputType().createSerializer(executionConfig));
+		return streamConfig;
 	}
 
 	private Output<StreamRecord<RowData>> createOutput(

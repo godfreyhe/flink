@@ -18,6 +18,9 @@
 
 package org.apache.flink.table.runtime.operators.multipleinput;
 
+import org.apache.flink.configuration.Configuration;
+import org.apache.flink.core.memory.ManagedMemoryUseCase;
+import org.apache.flink.streaming.api.graph.StreamConfig;
 import org.apache.flink.streaming.api.operators.BoundedMultiInput;
 import org.apache.flink.streaming.api.operators.InputSelectable;
 import org.apache.flink.streaming.api.operators.InputSelection;
@@ -27,6 +30,8 @@ import org.apache.flink.table.runtime.operators.multipleinput.input.InputSelecti
 import org.apache.flink.table.runtime.operators.multipleinput.input.InputSpec;
 
 import java.util.List;
+
+import static org.apache.flink.util.Preconditions.checkState;
 
 /**
  * A {@link MultipleInputStreamOperatorBase} to handle batch operators.
@@ -56,6 +61,22 @@ public class BatchMultipleInputStreamOperator
 	@Override
 	public InputSelection nextSelection() {
 		return inputSelectionHandler.getInputSelection();
+	}
+
+	protected StreamConfig createStreamConfig(
+			StreamOperatorParameters<RowData> multipleInputOperatorParameters,
+			TableOperatorWrapper<?> wrapper) {
+		StreamConfig streamConfig = super.createStreamConfig(multipleInputOperatorParameters, wrapper);
+		checkState(wrapper.getManagedMemoryFraction() >= 0);
+		Configuration taskManagerConfig = getRuntimeContext().getTaskManagerRuntimeInfo().getConfiguration();
+		double managedMemoryFraction = multipleInputOperatorParameters.getStreamConfig()
+				.getManagedMemoryFractionOperatorUseCaseOfSlot(
+						ManagedMemoryUseCase.BATCH_OP,
+						taskManagerConfig,
+						getRuntimeContext().getUserCodeClassLoader()) *
+				wrapper.getManagedMemoryFraction();
+		streamConfig.setManagedMemoryFractionOperatorOfUseCase(ManagedMemoryUseCase.BATCH_OP, managedMemoryFraction);
+		return streamConfig;
 	}
 
 }

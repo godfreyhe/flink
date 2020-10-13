@@ -142,24 +142,28 @@ public class ExecutionConfigOptions {
 					"default parallelism is set, then it will fallback to use the parallelism " +
 					"of StreamExecutionEnvironment.");
 
+	// just for testing
 	@Documentation.TableOption(execMode = Documentation.ExecMode.BATCH_STREAMING)
 	public static final ConfigOption<Boolean> TABLE_EXEC_RESOURCE_MULTIPLE_INPUT_PARALLELISM_FACTOR_ENABLED =
 		key("table.exec.resource.multiple-input-parallelism-factor.enabled")
 			.defaultValue(false)
 			.withDescription("");
 
+	// just for testing
 	@Documentation.TableOption(execMode = Documentation.ExecMode.BATCH_STREAMING)
 	public static final ConfigOption<Double> TABLE_EXEC_RESOURCE_MULTIPLE_INPUT_PARALLELISM_FACTOR =
 		key("table.exec.resource.multiple-input-parallelism-factor")
 			.defaultValue(1.0)
 			.withDescription("");
 
+	// just for testing
 	@Documentation.TableOption(execMode = Documentation.ExecMode.BATCH_STREAMING)
 	public static final ConfigOption<Integer> TABLE_EXEC_RESOURCE_MULTIPLE_INPUT_PARALLELISM_MAX =
 		key("table.exec.resource.multiple-input-parallelism-max")
 			.defaultValue(-1)
 			.withDescription("");
 
+	// just for testing
 	@Documentation.TableOption(execMode = Documentation.ExecMode.BATCH_STREAMING)
 	public static final ConfigOption<Double> TABLE_EXEC_RESOURCE_MULTIPLE_INPUT_MEMORY_FACTOR =
 		key("table.exec.resource.multiple-input-memory-factor")

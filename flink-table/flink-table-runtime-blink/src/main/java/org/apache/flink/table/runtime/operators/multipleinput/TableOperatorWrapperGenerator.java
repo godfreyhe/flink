@@ -23,6 +23,7 @@ import org.apache.flink.api.common.operators.ResourceSpec;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.dag.Transformation;
 import org.apache.flink.api.java.functions.KeySelector;
+import org.apache.flink.core.memory.ManagedMemoryUseCase;
 import org.apache.flink.streaming.api.operators.MultipleInputStreamOperator;
 import org.apache.flink.streaming.api.operators.SimpleOperatorFactory;
 import org.apache.flink.streaming.api.transformations.OneInputTransformation;
@@ -99,6 +100,9 @@ public class TableOperatorWrapperGenerator {
 	private int maxParallelism;
 	private ResourceSpec minResources;
 	private ResourceSpec preferredResources;
+	/**
+	 * managed memory weight for batch operator.
+	 */
 	private int managedMemoryWeight;
 
 	public TableOperatorWrapperGenerator(
@@ -199,11 +203,13 @@ public class TableOperatorWrapperGenerator {
 		if (minResources == null) {
 			minResources = transform.getMinResources();
 			preferredResources = transform.getPreferredResources();
-			managedMemoryWeight = transform.getManagedMemoryWeight();
+			managedMemoryWeight = transform.getManagedMemoryOperatorScopeUseCaseWeights().getOrDefault(
+					ManagedMemoryUseCase.BATCH_OP, 0);
 		} else {
 			minResources = minResources.merge(transform.getMinResources());
 			preferredResources = preferredResources.merge(transform.getPreferredResources());
-			managedMemoryWeight += transform.getManagedMemoryWeight();
+			managedMemoryWeight += transform.getManagedMemoryOperatorScopeUseCaseWeights().getOrDefault(
+					ManagedMemoryUseCase.BATCH_OP, 0);
 		}
 
 		final TableOperatorWrapper<?> wrapper;
@@ -231,7 +237,7 @@ public class TableOperatorWrapperGenerator {
 
 	private TableOperatorWrapper<?> visitOneInputTransformation(
 			OneInputTransformation<RowData, RowData> transform) {
-		Transformation<?> input = transform.getInput();
+		Transformation<?> input = transform.getInputs().get(0);
 
 		TableOperatorWrapper<?> wrapper = new TableOperatorWrapper<>(
 				transform.getOperatorFactory(),
@@ -312,7 +318,7 @@ public class TableOperatorWrapperGenerator {
 				transform.getOutputType());
 
 		int numberOfHeadInput = 0;
-		for (Transformation<RowData> input : transform.getInputs()) {
+		for (Transformation<?> input : transform.getInputs()) {
 			int inputIdx = inputTransforms.indexOf(input);
 			if (inputIdx >= 0) {
 				numberOfHeadInput ++;
@@ -348,7 +354,8 @@ public class TableOperatorWrapperGenerator {
 		for (Map.Entry<Transformation<?>, TableOperatorWrapper<?>> entry : visitedTransforms.entrySet()) {
 			double fraction = 0;
 			if (managedMemoryWeight != 0) {
-				fraction = entry.getKey().getManagedMemoryWeight() * 1.0 / this.managedMemoryWeight;
+				fraction = entry.getKey().getManagedMemoryOperatorScopeUseCaseWeights()
+						.getOrDefault(ManagedMemoryUseCase.BATCH_OP, 0) * 1.0 / this.managedMemoryWeight;
 			}
 			entry.getValue().setManagedMemoryFraction(fraction);
 		}
