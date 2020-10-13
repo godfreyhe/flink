@@ -22,7 +22,6 @@ import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.streaming.api.operators.BoundedMultiInput;
 import org.apache.flink.streaming.api.operators.BoundedOneInput;
-import org.apache.flink.streaming.api.operators.SetupableStreamOperator;
 import org.apache.flink.streaming.api.operators.StreamOperator;
 import org.apache.flink.streaming.api.operators.StreamOperatorFactory;
 import org.apache.flink.streaming.api.operators.StreamOperatorParameters;
@@ -41,10 +40,10 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
 
 /**
  * This class handles the close, endInput and other related logic of a {@link StreamOperator}.
- * It also automatically propagates the end-input operation to the next node that the {@link #outputEdges}
- * points to, so we only need to call the head node's {@link #endOperatorInput(int)} method.
+ * It also automatically propagates the end-input operation to the next wrapper that the {@link #outputEdges}
+ * points to, so we only need to call the head wrapper's {@link #endOperatorInput(int)} method.
  */
-public class StreamOperatorNode<OP extends StreamOperator<RowData>> implements Serializable {
+public class TableOperatorWrapper<OP extends StreamOperator<RowData>> implements Serializable {
 
 	private static final long serialVersionUID = 1L;
 
@@ -91,12 +90,12 @@ public class StreamOperatorNode<OP extends StreamOperator<RowData>> implements S
 	private double managedMemoryFraction = -1;
 
 	/**
-	 * The input edges of this operator node, the edges' targets is this instance.
+	 * The input edges of this operator wrapper, the edges' targets is this instance.
 	 */
 	private final List<Edge> inputEdges;
 
 	/**
-	 * The output edges of this operator node, the edges' sources is this instance.
+	 * The output edges of this operator wrapper, the edges' sources is this instance.
 	 */
 	private final List<Edge> outputEdges;
 
@@ -108,7 +107,7 @@ public class StreamOperatorNode<OP extends StreamOperator<RowData>> implements S
 	private boolean closed;
 	private int endedInputCount;
 
-	public StreamOperatorNode(
+	public TableOperatorWrapper(
 			StreamOperatorFactory<RowData> factory,
 			String name,
 			List<TypeInformation<?>> allInputTypes,
@@ -173,11 +172,11 @@ public class StreamOperatorNode<OP extends StreamOperator<RowData>> implements S
 		return outputType;
 	}
 
-	public void addInput(StreamOperatorNode<?> input, int inputId) {
+	public void addInput(TableOperatorWrapper<?> input, int inputId) {
 		addInput(input, inputId, null);
 	}
 
-	public void addInput(StreamOperatorNode<?> input, int inputId, @Nullable KeySelector<RowData, ?> keySelector) {
+	public void addInput(TableOperatorWrapper<?> input, int inputId, @Nullable KeySelector<RowData, ?> keySelector) {
 		Edge edge = new Edge(input, this, inputId, keySelector);
 		this.inputEdges.add(edge);
 		input.outputEdges.add(edge);
@@ -195,7 +194,7 @@ public class StreamOperatorNode<OP extends StreamOperator<RowData>> implements S
 		return inputEdges;
 	}
 
-	public List<StreamOperatorNode<?>> getInputNodes() {
+	public List<TableOperatorWrapper<?>> getInputWrappers() {
 		return inputEdges.stream().map(Edge::getSource).collect(Collectors.toList());
 	}
 
@@ -203,7 +202,7 @@ public class StreamOperatorNode<OP extends StreamOperator<RowData>> implements S
 		return outputEdges;
 	}
 
-	public List<StreamOperatorNode<?>> getOutputNodes() {
+	public List<TableOperatorWrapper<?>> getOutputWrappers() {
 		return outputEdges.stream().map(Edge::getTarget).collect(Collectors.toList());
 	}
 
@@ -234,13 +233,13 @@ public class StreamOperatorNode<OP extends StreamOperator<RowData>> implements S
 	}
 
 	/**
-	 * The edge connects two {@link StreamOperatorNode}s.
+	 * The edge connects two {@link TableOperatorWrapper}s.
 	 */
 	public static class Edge implements Serializable {
 		private static final long serialVersionUID = 1L;
 
-		private final StreamOperatorNode<?> source;
-		private final StreamOperatorNode<?> target;
+		private final TableOperatorWrapper<?> source;
+		private final TableOperatorWrapper<?> target;
 		/**
 		 * The key selector the the target's input.
 		 */
@@ -254,8 +253,8 @@ public class StreamOperatorNode<OP extends StreamOperator<RowData>> implements S
 		private final int inputId;
 
 		public Edge(
-				StreamOperatorNode<?> source,
-				StreamOperatorNode<?> target,
+				TableOperatorWrapper<?> source,
+				TableOperatorWrapper<?> target,
 				int inputId,
 				@Nullable KeySelector<RowData, ?> keySelector) {
 			this.source = source;
@@ -264,11 +263,11 @@ public class StreamOperatorNode<OP extends StreamOperator<RowData>> implements S
 			this.keySelector = keySelector;
 		}
 
-		public StreamOperatorNode<?> getSource() {
+		public TableOperatorWrapper<?> getSource() {
 			return source;
 		}
 
-		public StreamOperatorNode<?> getTarget() {
+		public TableOperatorWrapper<?> getTarget() {
 			return target;
 		}
 

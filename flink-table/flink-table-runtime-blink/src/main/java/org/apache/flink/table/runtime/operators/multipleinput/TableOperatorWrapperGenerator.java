@@ -46,9 +46,9 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
 import static org.apache.flink.util.Preconditions.checkState;
 
 /**
- * A generator that generates a {@link StreamOperatorNode} graph from a graph of {@link Transformation}s.
+ * A generator that generates a {@link TableOperatorWrapper} graph from a graph of {@link Transformation}s.
  */
-public class StreamOperatorNodeGenerator {
+public class TableOperatorWrapperGenerator {
 
 	/**
 	 * Original input transformations for {@link MultipleInputStreamOperator}.
@@ -84,16 +84,16 @@ public class StreamOperatorNodeGenerator {
 	private final List<InputSpec> inputSpecs;
 
 	/**
-	 * The head (leaf) operator nodes of the operator-graph in {@link MultipleInputStreamOperator}.
+	 * The head (leaf) operator wrappers of the operator-graph in {@link MultipleInputStreamOperator}.
 	 */
-	private final List<StreamOperatorNode<?>> headNodes;
+	private final List<TableOperatorWrapper<?>> headWrappers;
 
 	/**
-	 * The tail (root) operator node of the operator-graph in {@link MultipleInputStreamOperator}.
+	 * The tail (root) operator wrapper of the operator-graph in {@link MultipleInputStreamOperator}.
 	 */
-	private StreamOperatorNode<?> tailNode;
+	private TableOperatorWrapper<?> tailWrapper;
 
-	private final Map<Transformation<?>, StreamOperatorNode<?>> visitedTransforms;
+	private final Map<Transformation<?>, TableOperatorWrapper<?>> visitedTransforms;
 
 	private int parallelism;
 	private int maxParallelism;
@@ -101,13 +101,13 @@ public class StreamOperatorNodeGenerator {
 	private ResourceSpec preferredResources;
 	private int managedMemoryWeight;
 
-	public StreamOperatorNodeGenerator(
+	public TableOperatorWrapperGenerator(
 			List<Transformation<?>> inputTransforms,
 			Transformation<?> tailTransform) {
 		this(inputTransforms, tailTransform, new int[inputTransforms.size()]);
 	}
 
-	public StreamOperatorNodeGenerator(
+	public TableOperatorWrapperGenerator(
 			List<Transformation<?>> inputTransforms,
 			Transformation<?> tailTransform,
 			int[] readOrders) {
@@ -115,7 +115,7 @@ public class StreamOperatorNodeGenerator {
 		this.tailTransform = tailTransform;
 		this.readOrders = readOrders;
 		this.inputSpecs = new ArrayList<>();
-		this.headNodes = new ArrayList<>();
+		this.headWrappers = new ArrayList<>();
 		this.orderedInputTransforms = new ArrayList<>();
 		this.orderedKeySelectors = new ArrayList<>();
 		this.visitedTransforms = new IdentityHashMap<>();
@@ -125,7 +125,7 @@ public class StreamOperatorNodeGenerator {
 	}
 
 	public void generate() {
-		tailNode = visit(tailTransform);
+		tailWrapper = visit(tailTransform);
 		checkState(orderedInputTransforms.size() == inputTransforms.size());
 		checkState(orderedInputTransforms.size() == inputSpecs.size());
 		// checkState(orderedInputTransforms.size() == orderedKeySelectors.size());
@@ -149,12 +149,12 @@ public class StreamOperatorNodeGenerator {
 		return inputSpecs;
 	}
 
-	public List<StreamOperatorNode<?>> getHeadNodes() {
-		return headNodes;
+	public List<TableOperatorWrapper<?>> getHeadWrappers() {
+		return headWrappers;
 	}
 
-	public StreamOperatorNode<?> getTailNode() {
-		return tailNode;
+	public TableOperatorWrapper<?> getTailWrapper() {
+		return tailWrapper;
 	}
 
 	public int getParallelism() {
@@ -177,7 +177,7 @@ public class StreamOperatorNodeGenerator {
 		return managedMemoryWeight;
 	}
 
-	private StreamOperatorNode<?> visit(Transformation<?> transform) {
+	private TableOperatorWrapper<?> visit(Transformation<?> transform) {
 		int currentParallelism = transform.getParallelism();
 		if (parallelism < 0) {
 			parallelism = currentParallelism;
@@ -206,18 +206,18 @@ public class StreamOperatorNodeGenerator {
 			managedMemoryWeight += transform.getManagedMemoryWeight();
 		}
 
-		final StreamOperatorNode<?> node;
+		final TableOperatorWrapper<?> wrapper;
 		if (visitedTransforms.containsKey(transform)) {
-			node = visitedTransforms.get(transform);
+			wrapper = visitedTransforms.get(transform);
 		} else {
-			node = visitTransformation(transform);
-			visitedTransforms.put(transform, node);
+			wrapper = visitTransformation(transform);
+			visitedTransforms.put(transform, wrapper);
 		}
-		return node;
+		return wrapper;
 	}
 
 	@SuppressWarnings({"unchecked", "rawtypes"})
-	private StreamOperatorNode<?> visitTransformation(Transformation<?> transform) {
+	private TableOperatorWrapper<?> visitTransformation(Transformation<?> transform) {
 		if (transform instanceof OneInputTransformation) {
 			return visitOneInputTransformation((OneInputTransformation) transform);
 		} else if (transform instanceof TwoInputTransformation) {
@@ -229,11 +229,11 @@ public class StreamOperatorNodeGenerator {
 		}
 	}
 
-	private StreamOperatorNode<?> visitOneInputTransformation(
+	private TableOperatorWrapper<?> visitOneInputTransformation(
 			OneInputTransformation<RowData, RowData> transform) {
 		Transformation<?> input = transform.getInput();
 
-		StreamOperatorNode<?> node = new StreamOperatorNode<>(
+		TableOperatorWrapper<?> wrapper = new TableOperatorWrapper<>(
 				transform.getOperatorFactory(),
 				"SubOp" + visitedTransforms.size() + "_" + transform.getName(),
 				Collections.singletonList(transform.getInputType()),
@@ -245,23 +245,23 @@ public class StreamOperatorNodeGenerator {
 			orderedInputTransforms.add(input);
 			orderedKeySelectors.add(transform.getStateKeySelector());
 			checkAndSetStateKeyType(transform.getStateKeyType());
-			inputSpecs.add(createInputSpec(readOrders[inputIdx], node, 1));
-			headNodes.add(node);
+			inputSpecs.add(createInputSpec(readOrders[inputIdx], wrapper, 1));
+			headWrappers.add(wrapper);
 		} else {
-			StreamOperatorNode<?> inputNode = visit(input);
-			node.addInput(inputNode, 1, transform.getStateKeySelector());
+			TableOperatorWrapper<?> inputWrapper = visit(input);
+			wrapper.addInput(inputWrapper, 1, transform.getStateKeySelector());
 		}
-		return node;
+		return wrapper;
 	}
 
-	private StreamOperatorNode<?> visitTwoInputTransformation(
+	private TableOperatorWrapper<?> visitTwoInputTransformation(
 			TwoInputTransformation<RowData, RowData, RowData> transform) {
 		Transformation<?> input1 = transform.getInput1();
 		Transformation<?> input2 = transform.getInput2();
 		int inputIdx1 = inputTransforms.indexOf(input1);
 		int inputIdx2 = inputTransforms.indexOf(input2);
 
-		StreamOperatorNode<?> node = new StreamOperatorNode<>(
+		TableOperatorWrapper<?> wrapper = new TableOperatorWrapper<>(
 				transform.getOperatorFactory(),
 				"SubOp" + visitedTransforms.size() + "_" + transform.getName(),
 				Arrays.asList(transform.getInputType1(), transform.getInputType2()),
@@ -270,42 +270,42 @@ public class StreamOperatorNodeGenerator {
 		if (inputIdx1 >= 0 && inputIdx2 >= 0) {
 			orderedInputTransforms.add(input1);
 			orderedKeySelectors.add(transform.getStateKeySelector1());
-			inputSpecs.add(createInputSpec(readOrders[inputIdx1], node, 1));
+			inputSpecs.add(createInputSpec(readOrders[inputIdx1], wrapper, 1));
 			orderedInputTransforms.add(input2);
 			orderedKeySelectors.add(transform.getStateKeySelector2());
-			inputSpecs.add(createInputSpec(readOrders[inputIdx2], node, 2));
-			headNodes.add(node);
+			inputSpecs.add(createInputSpec(readOrders[inputIdx2], wrapper, 2));
+			headWrappers.add(wrapper);
 		} else if (inputIdx1 >= 0) {
-			StreamOperatorNode<?> inputNode = visit(input2);
-			node.addInput(inputNode, 2);
+			TableOperatorWrapper<?> inputWrapper = visit(input2);
+			wrapper.addInput(inputWrapper, 2);
 			orderedInputTransforms.add(input1);
 			orderedKeySelectors.add(transform.getStateKeySelector1());
-			inputSpecs.add(createInputSpec(readOrders[inputIdx1], node, 1));
-			headNodes.add(node);
+			inputSpecs.add(createInputSpec(readOrders[inputIdx1], wrapper, 1));
+			headWrappers.add(wrapper);
 		} else if (inputIdx2 >= 0) {
-			StreamOperatorNode<?> inputNode = visit(input1);
-			node.addInput(inputNode, 1);
+			TableOperatorWrapper<?> inputWrapper = visit(input1);
+			wrapper.addInput(inputWrapper, 1);
 			orderedInputTransforms.add(input2);
 			orderedKeySelectors.add(transform.getStateKeySelector2());
-			inputSpecs.add(createInputSpec(readOrders[inputIdx2], node, 2));
-			headNodes.add(node);
+			inputSpecs.add(createInputSpec(readOrders[inputIdx2], wrapper, 2));
+			headWrappers.add(wrapper);
 		} else {
-			StreamOperatorNode<?> inputNode1 = visit(input1);
-			node.addInput(inputNode1, 1, transform.getStateKeySelector1());
-			StreamOperatorNode<?> inputNode2 = visit(input2);
-			node.addInput(inputNode2, 2, transform.getStateKeySelector2());
+			TableOperatorWrapper<?> inputWrapper1 = visit(input1);
+			wrapper.addInput(inputWrapper1, 1, transform.getStateKeySelector1());
+			TableOperatorWrapper<?> inputWrapper2 = visit(input2);
+			wrapper.addInput(inputWrapper2, 2, transform.getStateKeySelector2());
 		}
 		if (inputIdx1 >= 0 || inputIdx2 >= 0) {
 			checkAndSetStateKeyType(transform.getStateKeyType());
 		}
 
-		return node;
+		return wrapper;
 	}
 
-	private StreamOperatorNode<?> visitUnionTransformation(
+	private TableOperatorWrapper<?> visitUnionTransformation(
 			UnionTransformation<RowData> transform) {
 		// use MapFunction to combine the input data
-		StreamOperatorNode<?> node = new StreamOperatorNode<>(
+		TableOperatorWrapper<?> wrapper = new TableOperatorWrapper<>(
 				SimpleOperatorFactory.of(new UnionStreamOperator<>((MapFunction<RowData, RowData>) value -> value)),
 				"SubOp" + visitedTransforms.size() + "_" + transform.getName(),
 				transform.getInputs().stream().map(Transformation::getOutputType).collect(Collectors.toList()),
@@ -318,10 +318,10 @@ public class StreamOperatorNodeGenerator {
 				numberOfHeadInput ++;
 				orderedInputTransforms.add(input);
 				orderedKeySelectors.add(null);
-				inputSpecs.add(createInputSpec(readOrders[inputIdx], node, 1)); // always 1 here
+				inputSpecs.add(createInputSpec(readOrders[inputIdx], wrapper, 1)); // always 1 here
 			} else {
-				StreamOperatorNode<?> inputNode = visit(input);
-				node.addInput(inputNode, 1); // always 1 here
+				TableOperatorWrapper<?> inputWrapper = visit(input);
+				wrapper.addInput(inputWrapper, 1); // always 1 here
 			}
 		}
 		// TODO remove this validation ?
@@ -330,22 +330,22 @@ public class StreamOperatorNodeGenerator {
 		}
 
 		if (numberOfHeadInput > 0) {
-			headNodes.add(node);
+			headWrappers.add(wrapper);
 		}
-		return node;
+		return wrapper;
 	}
 
-	private InputSpec createInputSpec(int readOrder, StreamOperatorNode<?> outputNode, int inputIndex) {
-		checkNotNull(outputNode);
+	private InputSpec createInputSpec(int readOrder, TableOperatorWrapper<?> outputWrapper, int inputIndex) {
+		checkNotNull(outputWrapper);
 		int inputId = inputSpecs.size() + 1;
-		return new InputSpec(inputId, readOrder, outputNode, inputIndex);
+		return new InputSpec(inputId, readOrder, outputWrapper, inputIndex);
 	}
 
 	/**
-	 * calculate managed memory fraction for each operator node.
+	 * calculate managed memory fraction for each operator wrapper.
 	 */
 	private void calculateManagedMemoryFraction() {
-		for (Map.Entry<Transformation<?>, StreamOperatorNode<?>> entry : visitedTransforms.entrySet()) {
+		for (Map.Entry<Transformation<?>, TableOperatorWrapper<?>> entry : visitedTransforms.entrySet()) {
 			double fraction = 0;
 			if (managedMemoryWeight != 0) {
 				fraction = entry.getKey().getManagedMemoryWeight() * 1.0 / this.managedMemoryWeight;
