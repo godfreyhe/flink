@@ -20,8 +20,11 @@ package org.apache.flink.table.planner.calcite
 
 import org.apache.flink.table.api.TableConfig
 import org.apache.flink.table.catalog.{CatalogManager, FunctionCatalog}
+import org.apache.flink.table.delegation.Planner
+import org.apache.flink.table.planner.delegation.PlannerBase
 
 class FlinkContextImpl(
+    planner: PlannerBase,
     tableConfig: TableConfig,
     functionCatalog: FunctionCatalog,
     catalogManager: CatalogManager,
@@ -35,4 +38,6 @@ class FlinkContextImpl(
   override def getCatalogManager: CatalogManager = catalogManager
 
   override def getSqlExprToRexConverterFactory: SqlExprToRexConverterFactory = toRexFactory
+
+  override def getPlanner: Planner = planner
 }

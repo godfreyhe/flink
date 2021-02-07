@@ -21,6 +21,7 @@ package org.apache.flink.table.planner.plan.optimize
 import org.apache.flink.table.api.TableConfig
 import org.apache.flink.table.api.config.ExecutionConfigOptions
 import org.apache.flink.table.catalog.{CatalogManager, FunctionCatalog}
+import org.apache.flink.table.delegation.Planner
 import org.apache.flink.table.planner.calcite.{FlinkContext, SqlExprToRexConverterFactory}
 import org.apache.flink.table.planner.delegation.StreamPlanner
 import org.apache.flink.table.planner.plan.`trait`.{MiniBatchInterval, MiniBatchIntervalTrait, MiniBatchIntervalTraitDef, MiniBatchMode, ModifyKindSet, ModifyKindSetTraitDef, UpdateKind, UpdateKindTraitDef}
@@ -178,6 +179,8 @@ class StreamCommonSubGraphBasedOptimizer(planner: StreamPlanner)
       def getMiniBatchInterval: MiniBatchInterval = miniBatchInterval
 
       override def needFinalTimeIndicatorConversion: Boolean = isSinkBlock
+
+      override def getPlanner: Planner = ???
     })
   }
 

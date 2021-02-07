@@ -20,6 +20,7 @@ package org.apache.flink.table.planner.plan.optimize
 
 import org.apache.flink.table.api.TableConfig
 import org.apache.flink.table.catalog.{CatalogManager, FunctionCatalog}
+import org.apache.flink.table.delegation.Planner
 import org.apache.flink.table.planner.calcite.{FlinkContext, SqlExprToRexConverterFactory}
 import org.apache.flink.table.planner.delegation.BatchPlanner
 import org.apache.flink.table.planner.plan.nodes.calcite.{LegacySink, Sink}
@@ -97,6 +98,8 @@ class BatchCommonSubGraphBasedOptimizer(planner: BatchPlanner)
       override def getRexBuilder: RexBuilder = planner.getRelBuilder.getRexBuilder
 
       override def needFinalTimeIndicatorConversion: Boolean = true
+
+      override def getPlanner: Planner = ???
     })
   }
 

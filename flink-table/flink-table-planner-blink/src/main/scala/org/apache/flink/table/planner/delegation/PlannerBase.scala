@@ -112,6 +112,7 @@ abstract class PlannerBase(
   @VisibleForTesting
   private[flink] val plannerContext: PlannerContext =
     new PlannerContext(
+      this,
       config,
       functionCatalog,
       catalogManager,

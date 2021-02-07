@@ -20,6 +20,7 @@ package org.apache.flink.table.planner.calcite
 
 import org.apache.flink.table.api.TableConfig
 import org.apache.flink.table.catalog.{CatalogManager, FunctionCatalog}
+import org.apache.flink.table.delegation.Planner
 
 import org.apache.calcite.plan.Context
 
@@ -27,6 +28,8 @@ import org.apache.calcite.plan.Context
   * A [[Context]] to allow the store data within the planner session and access it within rules.
   */
 trait FlinkContext extends Context {
+
+  def getPlanner: Planner
 
   /**
     * Gets [[TableConfig]] instance defined in [[org.apache.flink.table.api.TableEnvironment]].

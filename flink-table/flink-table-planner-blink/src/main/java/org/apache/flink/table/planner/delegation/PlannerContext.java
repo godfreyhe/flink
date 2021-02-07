@@ -98,10 +98,21 @@ public class PlannerContext {
             CatalogManager catalogManager,
             CalciteSchema rootSchema,
             List<RelTraitDef> traitDefs) {
+        this(null, tableConfig, functionCatalog, catalogManager, rootSchema, traitDefs);
+    }
+
+    public PlannerContext(
+            PlannerBase plannerBase,
+            TableConfig tableConfig,
+            FunctionCatalog functionCatalog,
+            CatalogManager catalogManager,
+            CalciteSchema rootSchema,
+            List<RelTraitDef> traitDefs) {
         this.tableConfig = tableConfig;
 
         this.context =
                 new FlinkContextImpl(
+                        plannerBase,
                         tableConfig,
                         functionCatalog,
                         catalogManager,
