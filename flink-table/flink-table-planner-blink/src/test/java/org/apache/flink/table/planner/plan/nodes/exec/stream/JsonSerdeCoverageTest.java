@@ -56,7 +56,6 @@ public class JsonSerdeCoverageTest {
                     "StreamExecTemporalSort",
                     "StreamExecSort",
                     "StreamExecMultipleInput",
-                    "StreamExecMatch",
                     "StreamExecValues");
 
     @SuppressWarnings({"rawtypes"})
